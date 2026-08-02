@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ait11 仕様書 - 運転免許取得経緯推定</title>
+<style>
+  :root {
+    --bg: #f4efe0;
+    --ink: #2b2013;
+    --ink-soft: #4a3c26;
+    --muted: #7d6a48;
+    --border: #d8c9a3;
+    --border-soft: #e7dcc0;
+    --card-bg: #fffdf7;
+    --input-bg: #fffaf0;
+    --accent: #a9761f;
+    --accent-dark: #7a5510;
+    --accent-soft: rgba(169,118,31,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Georgia', serif;
+    font-size: 16px;
+    color: var(--ink-soft);
+    padding: 32px 16px 56px;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(169,118,31,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(169,118,31,0.04) 0%, transparent 60%);
+  }
+  .container { max-width: 560px; margin: 0 auto; position: relative; }
+
+  .header { text-align: center; margin-bottom: 28px; }
+  .header-sub { font-size: 11px; letter-spacing: 0.3em; color: var(--muted); margin-bottom: 12px; }
+  .header h1 { font-size: 23px; font-weight: normal; color: var(--accent-dark); letter-spacing: 0.03em; line-height: 1.5; }
+  .header p { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .header-divider { margin-top: 16px; height: 1px; background: linear-gradient(to right, transparent, var(--border), transparent); }
+
+  nav.toc {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 4px 2px 18px;
+    margin-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  nav.toc::-webkit-scrollbar { display: none; }
+  nav.toc a {
+    flex: 0 0 auto;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 12.5px;
+    color: var(--accent-dark);
+    text-decoration: none;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 7px 14px;
+    white-space: nowrap;
+  }
+
+  section { margin-bottom: 30px; scroll-margin-top: 14px; }
+  section h2 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--accent-dark);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+    letter-spacing: 0.02em;
+  }
+  section h3 {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 18px 0 8px;
+  }
+  section p { line-height: 1.85; margin-bottom: 10px; }
+  section p.lead { color: var(--ink); }
+  section ul, section ol { padding-left: 1.3em; margin-bottom: 10px; }
+  section li { line-height: 1.8; margin-bottom: 6px; }
+  section li::marker { color: var(--accent); }
+  code, .path {
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(90,62,10,0.06);
+  }
+
+  .field-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(90,62,10,0.05);
+  }
+  .field-card .field-name {
+    display: inline-block;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent-dark);
+    background: var(--accent-soft);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin-bottom: 8px;
+  }
+  .field-card .field-how { color: var(--ink); line-height: 1.75; margin-bottom: 4px; }
+  .field-card .field-note { color: var(--muted); font-size: 13px; line-height: 1.75; }
+
+  .timeline { border-left: 2px solid var(--border); margin-left: 4px; padding-left: 18px; }
+  .timeline-item { position: relative; margin-bottom: 16px; }
+  .timeline-item:last-child { margin-bottom: 0; }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -23px;
+    top: 6px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--card-bg);
+  }
+  .timeline-year {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent-dark);
+    margin-bottom: 2px;
+  }
+  .timeline-desc { color: var(--ink-soft); line-height: 1.75; font-size: 14.5px; }
+
+  .step-list { counter-reset: step; list-style: none; padding-left: 0; }
+  .step-list li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 2em;
+    margin-bottom: 14px;
+  }
+  .step-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 0;
+    width: 1.5em; height: 1.5em;
+    line-height: 1.5em;
+    text-align: center;
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    border-radius: 50%;
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .step-list .step-title { color: var(--ink); font-weight: 600; display: block; margin-bottom: 3px; }
+
+  .note {
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    line-height: 1.75;
+    margin-top: 10px;
+  }
+  .note strong { color: var(--accent-dark); }
+
+  .meta-line {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    font-size: 11.5px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  .footer { text-align: center; margin-top: 40px; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; line-height: 1.9; }
+  .footer a { color: var(--accent-dark); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-sub">SPECIFICATION</div>
+    <h1>ait11 - 運転免許取得経緯推定<br>（免許証 経歴解読）</h1>
+    <p>本ページは <code>仕様書.md</code> をスマートフォンで読みやすいよう再構成したものです。<br>内容を変更する場合は <code>仕様書.md</code> 側も合わせて更新してください。</p>
+    <div class="meta-line">最終更新：2026-08-02</div>
+    <div class="header-divider"></div>
+  </div>
+
+  <nav class="toc">
+    <a href="#overview">概要</a>
+    <a href="#howto">使い方</a>
+    <a href="#logic">解析ロジック</a>
+    <a href="#eras">年境界</a>
+    <a href="#ui">UI実装メモ</a>
+    <a href="#limits">既知の制約</a>
+  </nav>
+
+  <section id="overview">
+    <h2>概要</h2>
+    <p class="lead">免許証の券面情報（最初の取得年・免許証の色・所持免許種別・条件欄の記載）を入力すると、免許制度の変遷（中型・準中型の新設、AT限定制度、経過措置等）に基づいて、その人がどういう順序・時代背景で免許を取得してきたかをロジックベースで推測し、読み物として表示するエンタメ寄りのツールです。</p>
+    <p>ait03〜ait06（運転条件案内アプリ群）とは異なり、Next.js等のビルド環境を使わない<strong style="color:var(--ink)">単一の静的HTMLファイル</strong>（<code>license-history.html</code>）として実装されています。ビルド・依存パッケージ・サーバーが一切不要で、ファイルをダブルクリック（またはブラウザで開く）するだけでスマートフォン・PCどちらでも動作します。</p>
+    <ul>
+      <li>分析結果は法的な正式判定ではなく<strong style="color:var(--ink)">推測</strong>である旨をフッターに明記</li>
+      <li>出典管理（<code>SourceCitation</code>等）はait03〜06ほど厳密ではない。昭和期のレア条件（三輪限定・側車付限定・審査未済等）の解説は一般的な知識に基づく簡易な説明文で、個々に一次資料の引用は付けていない</li>
+    </ul>
+  </section>
+
+  <section id="howto">
+    <h2>使い方・入力項目</h2>
+
+    <div class="field-card">
+      <span class="field-name">最初の免許取得年</span>
+      <div class="field-how">ドラム（ホイール）ピッカーで年を選択</div>
+      <div class="field-note">1948年〜当年まで。西暦と元号を併記（例：2007年（平成19年））</div>
+    </div>
+
+    <div class="field-card">
+      <span class="field-name">免許証の色</span>
+      <div class="field-how">グリーン／ブルー／ゴールドのボタン択一</div>
+      <div class="field-note">再クリックで選択解除可</div>
+    </div>
+
+    <div class="field-card">
+      <span class="field-name">所持免許種別</span>
+      <div class="field-how">13種別（大型・中型・準中型・普通・大型特殊・小型特殊・大型二輪・普通二輪・原付・牽引・大型二種・中型二種・普通二種）のトグルボタンで複数選択</div>
+      <div class="field-note">選択すると「各免許の取得年を個別入力」欄が開閉可能になる</div>
+    </div>
+
+    <div class="field-card">
+      <span class="field-name">各免許の取得年（任意）</span>
+      <div class="field-how">選択した免許ごとにドラムピッカーで個別入力</div>
+      <div class="field-note">折りたたみ式。現状 <code>analyze()</code> 内では未使用の入力値（将来の精度向上用に保持）</div>
+    </div>
+
+    <div class="field-card">
+      <span class="field-name">条件等</span>
+      <div class="field-how">プルダウン相当のトグルボタン（8グループ）＋自由記述欄</div>
+      <div class="field-note">グループ：制度移行による限定／AT限定／二輪の排気量・車種限定／大型特殊の限定／牽引の限定／自衛隊関連／身体的条件／昭和期の旧制度・レア条件</div>
+    </div>
+
+    <p style="margin-top:14px">「免許証を解読する」ボタン押下で <code>analyze()</code> を実行し、結果カードに解析結果を表示します。取得年・免許種別のどちらも未入力の場合はアラートで入力を促します。</p>
+  </section>
+
+  <section id="logic">
+    <h2>解析ロジック（<code>analyze()</code>）</h2>
+    <p>入力年・免許種別・条件から、以下のセクションを順に組み立てて1つのMarkdown風テキストにし、簡易パーサー（<code>renderResult()</code>）でHTMLに変換して表示します。</p>
+
+    <ol class="step-list">
+      <li>
+        <span class="step-title">🕰️ 取得の時代背景</span>
+        最初の取得年から「いつ・どの制度の順で免許を積み上げたか」を <code>buildLicenseFlow()</code> が復元し（例：普通免許取得 → 中型免許（8t限定）へ自動移行 → 大型免許を取得）、さらに取得年が属する時代区分（〜1974／〜1979／〜1988／1989／〜1999／〜2006／〜2016／〜2018／それ以降）ごとに固定の時代解説文を付ける。
+      </li>
+      <li>
+        <span class="step-title">📋 免許種別の読み解き</span>
+        所持免許種別ごとに、取得年との関係で「自動移行」「限定解除」「正規取得」等の解説文を組み立てる。中型・準中型は8t/5t限定への自動移行が起きる年境界（2007年・2017年）で分岐、普通二輪はAT限定条件の有無で説明文が変わる。
+      </li>
+      <li>
+        <span class="step-title">📜 条件欄の解読</span>
+        選択した条件トグル＋自由記述の条件文字列を <code>SPECIAL_COND_MAP</code>（パターン文字列→解説文のマップ、約18パターン）と部分一致で照合し、該当する解説を表示。マッチしないフリーテキストは「制度変遷の中で付与された特殊な条件の可能性があります」という汎用文で表示する。
+      </li>
+      <li>
+        <span class="step-title">🎨 免許証の色</span>
+        グリーン／ブルー／ゴールドそれぞれの固定解説文を表示。
+      </li>
+      <li>
+        <span class="step-title">🔍 総合推測ストーリー</span>
+        取得年・免許種別の組み合わせから、経験豊富さ等を総括する1〜2文の締めくくりを生成。
+      </li>
+    </ol>
+  </section>
+
+  <section id="eras">
+    <h2>主な年境界（制度移行ロジックの前提）</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-year">1975年</div>
+        <div class="timeline-desc">二輪免許が排気量別に分化</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">1991年</div>
+        <div class="timeline-desc">AT限定免許の導入</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">1996年</div>
+        <div class="timeline-desc">「自動二輪（軽二輪限定）」→「普通二輪（小型限定）」等へ移行</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">2007年6月2日</div>
+        <div class="timeline-desc">中型免許新設。以前の普通免許は中型（8t限定）へ自動移行</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">2017年3月12日</div>
+        <div class="timeline-desc">準中型免許新設。2007〜2016年取得の普通免許は準中型（5t限定）へ自動移行</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-year">2022年5月13日</div>
+        <div class="timeline-desc">二輪AT限定が650ccまで緩和</div>
+      </div>
+    </div>
+    <div class="note">これらの年境界は本仕様書作成時点でコード内にハードコードされているのみで、外部の一次資料への出典リンクは付与していません（ait03〜06のような <code>SourceCitation</code> 管理の対象外）。制度の詳細を厳密に扱う必要が生じた場合は、ait03〜06で確立した「e-Gov法令API等の一次資料を直接fetchする」手法を踏襲するのが望ましいです。</div>
+  </section>
+
+  <section id="ui">
+    <h2>UI実装メモ</h2>
+    <ul>
+      <li><strong style="color:var(--ink)">配色（2026-08-02改訂）</strong>：初期実装は濃茶〜黒の背景に金文字という視認性の低い配色だったため、暖色系の明るいテーマ（クリーム背景 <code>#f4efe0</code>／濃茶文字／アンバー系アクセント <code>#a9761f</code>）に変更。CSS変数（<code>:root</code>）で一元管理。</li>
+      <li><strong style="color:var(--ink)">年入力（2026-08-02改訂）</strong>：スマートフォンでの利用を想定し、<code>&lt;select&gt;</code>によるプルダウンから、指でスクロールして選ぶ<strong style="color:var(--ink)">ドラム（ホイール）ピッカー</strong>（<code>createDrumPicker()</code>、CSS <code>scroll-snap-type: y mandatory</code> ベース）に置き換えた。中央の枠内にスクロールで止まった項目が選択され、上下の項目はマスクでフェードアウトする。項目タップでも該当位置へスナップして選択可能。「最初の免許取得年」は5行表示、各免許の個別取得年は3行表示。</li>
+      <li>依存ライブラリなし（vanilla JS、フレームワーク不使用）。ファイル単体で完結するため、配布はこのHTMLファイルをコピーするだけでよい。</li>
+    </ul>
+  </section>
+
+  <section id="limits">
+    <h2>既知の制約</h2>
+    <ul>
+      <li><code>licenseYears</code>（各免許の個別取得年）は入力・保持されるが、<code>analyze()</code> の判定ロジックには現状組み込まれていない（最初の取得年のみで時代背景・移行フローを推測している）。</li>
+      <li>条件欄の自由入力はカンマ・読点・改行区切りでパースするのみで、表記ゆれ（全角/半角、助詞の有無等）への強いマッチングは行っていない。</li>
+    </ul>
+  </section>
+
+  <div class="footer">
+    このページは <code>仕様書.md</code> の内容を基にしたスマホ閲覧用ビューです。<br>
+    アプリ本体は <code>license-history.html</code>。
+  </div>
+
+</div>
+</body>
+</html>

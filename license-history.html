@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>免許証 経歴解読</title>
+<style>
+  :root {
+    --bg: #f4efe0;
+    --ink: #2b2013;
+    --ink-soft: #4a3c26;
+    --muted: #7d6a48;
+    --border: #d8c9a3;
+    --border-soft: #e7dcc0;
+    --card-bg: #fffdf7;
+    --input-bg: #fffaf0;
+    --accent: #a9761f;
+    --accent-dark: #7a5510;
+    --accent-soft: rgba(169,118,31,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Georgia', serif;
+    font-size: 16px;
+    color: var(--ink-soft);
+    padding: 32px 16px;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(169,118,31,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(169,118,31,0.04) 0%, transparent 60%);
+  }
+  .container { max-width: 520px; margin: 0 auto; position: relative; }
+  .header { text-align: center; margin-bottom: 36px; }
+  .header-sub { font-size: 11px; letter-spacing: 0.3em; color: var(--muted); margin-bottom: 12px; }
+  .header h1 { font-size: 26px; font-weight: normal; color: var(--accent-dark); letter-spacing: 0.05em; }
+  .header p { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .header-divider { margin-top: 16px; height: 1px; background: linear-gradient(to right, transparent, var(--border), transparent); }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 18px;
+    box-shadow: 0 1px 3px rgba(90,62,10,0.06);
+  }
+  .field { margin-bottom: 26px; }
+  .field-label {
+    font-size: 12px; color: var(--ink-soft);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 8px; display: block;
+    font-weight: 600;
+  }
+  .field-hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; line-height: 1.7; }
+  .group-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; letter-spacing: 0.05em; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
+  .toggle-btn {
+    padding: 9px 14px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+    font-family: inherit;
+    min-height: 40px;
+  }
+  .toggle-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-dark);
+    font-weight: 600;
+  }
+  .color-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .color-btn {
+    padding: 10px 20px;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 13px;
+    transition: all 0.15s;
+    min-height: 40px;
+  }
+  .color-btn.active-green  { border-color: #2f7d52; background: rgba(47,125,82,0.12);  color: #1f5c3b; font-weight: 600; }
+  .color-btn.active-blue   { border-color: #2660a4; background: rgba(38,96,164,0.12);  color: #1a4676; font-weight: 600; }
+  .color-btn.active-gold   { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+  textarea {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    padding: 10px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    border-radius: 4px;
+    resize: vertical;
+    line-height: 1.7;
+  }
+  .selected-display {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent-dark);
+    display: none;
+  }
+  .selected-label { color: var(--muted); }
+  .year-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  .expand-btn {
+    background: none; border: none; color: var(--muted);
+    font-size: 12px; cursor: pointer; font-family: inherit;
+    letter-spacing: 0.05em; padding: 4px 0; text-decoration: underline;
+  }
+  .analyze-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    border: none;
+    color: #fffaf0;
+    font-size: 15px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    font-family: inherit;
+    border-radius: 6px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 6px rgba(122,85,16,0.25);
+  }
+  .analyze-btn:disabled { background: var(--border-soft); color: var(--muted); box-shadow: none; cursor: not-allowed; }
+  .analyze-btn:hover:not(:disabled) { opacity: 0.9; }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,250,240,0.35);
+    border-top-color: #fffaf0;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-card {
+    margin-top: 28px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 18px;
+    animation: fadeIn 0.5s ease;
+    display: none;
+    box-shadow: 0 1px 3px rgba(90,62,10,0.06);
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .result-header {
+    font-size: 11px; letter-spacing: 0.2em; color: var(--muted);
+    margin-bottom: 20px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .result-body h3 { color: var(--accent-dark); font-size: 16px; margin: 20px 0 6px; border-bottom: 1px solid var(--border-soft); padding-bottom: 4px; font-weight: 600; }
+  .result-body h4 { color: var(--accent); font-size: 14px; margin: 14px 0 4px; font-weight: 600; }
+  .result-body p { color: var(--ink-soft); margin: 4px 0; line-height: 1.85; }
+  .result-body strong { color: var(--accent-dark); }
+  .result-body hr { border: none; border-top: 1px solid var(--border-soft); margin: 16px 0; }
+  .result-body .bullet { display: flex; gap: 8px; margin: 4px 0 4px 8px; }
+  .result-body .bullet-mark { color: var(--accent); flex-shrink: 0; }
+  .result-body .bullet-text { color: var(--ink-soft); line-height: 1.85; }
+  .footer { text-align: center; margin-top: 36px; font-size: 11px; color: var(--muted); letter-spacing: 0.05em; line-height: 1.7; }
+  .cond-group { margin-bottom: 14px; }
+
+  .drum {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 20%, black 80%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, black 20%, black 80%, transparent 100%);
+  }
+  .drum-scroll {
+    height: 100%;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    position: relative;
+  }
+  .drum-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  .drum-item {
+    scroll-snap-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 15px;
+    color: var(--muted);
+    transition: color 0.15s, font-weight 0.15s, font-size 0.15s;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    z-index: 1;
+  }
+  .drum-item.selected {
+    color: var(--accent-dark);
+    font-weight: 700;
+    font-size: 17px;
+  }
+  .drum-highlight {
+    position: absolute;
+    left: 0; right: 0;
+    border-top: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
+    background: var(--accent-soft);
+    pointer-events: none;
+    z-index: 0;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-sub">JAPANESE DRIVER'S LICENSE ANALYST</div>
+    <h1>免許証 経歴解読</h1>
+    <p>券面の情報を入力すると、あなたの免許取得の歴史と<br>時代背景を読み解きます</p>
+    <div class="header-divider"></div>
+  </div>
+  <div class="card">
+    <div class="field">
+      <label class="field-label">最初の免許取得年</label>
+      <div class="drum" id="firstYearDrum"></div>
+    </div>
+    <div class="field">
+      <label class="field-label">免許証の色</label>
+      <div class="color-btns">
+        <button class="color-btn" data-color="グリーン" onclick="toggleColor(this)">グリーン</button>
+        <button class="color-btn" data-color="ブルー"  onclick="toggleColor(this)">ブルー</button>
+        <button class="color-btn" data-color="ゴールド" onclick="toggleColor(this)">ゴールド</button>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">所持免許種別（券面に記載のもの）</label>
+      <div class="toggles" id="licenseToggles"></div>
+    </div>
+    <div class="field">
+      <label class="field-label">条件等</label>
+      <div class="field-hint">プルダウンから選択するか、下の自由入力欄に直接入力できます。</div>
+      <div id="condGroups"></div>
+      <div class="selected-display" id="selectedDisplay">
+        <span class="selected-label">選択中：</span>
+        <span id="selectedText"></span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">条件欄の文字列（そのまま入力）</label>
+      <div class="field-hint">
+        例：「三輪に限る」「側車付に限る」など、券面の条件欄に記載されている<br>
+        文字列をそのまま入力してください。複数ある場合は改行して入力できます。
+      </div>
+      <textarea id="freeConditions" rows="3" placeholder="三輪に限る&#10;眼鏡等"></textarea>
+    </div>
+    <div class="field" id="licenseYearSection" style="display:none">
+      <button class="expand-btn" onclick="toggleYearInputs()">▸ 各免許の取得年を個別入力（任意）</button>
+      <div id="yearGrid" class="year-grid" style="display:none"></div>
+    </div>
+    <button class="analyze-btn" id="analyzeBtn" onclick="handleAnalyze()">免許証を解読する</button>
+  </div>
+  <div class="result-card" id="resultCard">
+    <div class="result-header">◆ 解読結果</div>
+    <div class="result-body" id="resultBody"></div>
+  </div>
+  <div class="footer">※ このアプリの分析はロジックベースの推測です。制度の詳細は警察庁・各都道府県警のサイトをご確認ください。</div>
+</div>
+<script>
+const LICENSE_TYPES = ["大型","中型","準中型","普通","大型特殊","小型特殊","大型二輪","普通二輪","原付","牽引","大型二種","中型二種","普通二種"];
+
+const CONDITION_GROUPS = [
+  { group: "制度移行による限定（旧免許の移行）", items: [
+    { id: "中型車は中型車(8t)に限る",                        label: "中型車は中型車(8t)に限る" },
+    { id: "準中型で運転できる準中型車は準中型車(5t)に限る", label: "準中型車は準中型車(5t)に限る" },
+    { id: "大型車はマイクロバスに限る",                      label: "大型車はマイクロバスに限る" },
+    { id: "普通車はミニカーに限る",                          label: "普通車はミニカーに限る" },
+  ]},
+  { group: "AT限定", items: [
+    { id: "普通車はAT車に限る",           label: "普通車はAT車に限る" },
+    { id: "中型車はAT車に限る",           label: "中型車はAT車に限る" },
+    { id: "準中型車はAT車に限る",         label: "準中型車はAT車に限る" },
+    { id: "二輪車はAT車に限る(~125cc)",   label: "二輪はAT・小型二輪に限る" },
+    { id: "二輪車はAT車に限る(~650cc)",   label: "二輪はAT・650cc以下に限る" },
+    { id: "大型二輪はAT車に限る",         label: "大型二輪はAT車に限る" },
+  ]},
+  { group: "二輪の排気量・車種限定", items: [
+    { id: "普通二輪は小型二輪に限る",          label: "普通二輪は小型二輪に限る（125cc以下）" },
+    { id: "自動二輪は軽二輪に限る（旧制度）",  label: "自動二輪は軽二輪に限る（旧制度）" },
+  ]},
+  { group: "大型特殊の限定", items: [
+    { id: "大型特殊は農耕車両に限る", label: "大型特殊は農耕車両に限る" },
+    { id: "大型特殊は装軌車に限る",   label: "大型特殊は装軌車に限る" },
+  ]},
+  { group: "牽引の限定", items: [
+    { id: "引くことができる車はライトトレーラーに限る", label: "牽引はライトトレーラーに限る" },
+  ]},
+  { group: "自衛隊関連", items: [
+    { id: "大型は自衛隊車両に限る", label: "大型は自衛隊車両に限る" },
+  ]},
+  { group: "身体的条件", items: [
+    { id: "眼鏡等",       label: "眼鏡等" },
+    { id: "深視力",       label: "深視力" },
+    { id: "補聴器",       label: "補聴器" },
+    { id: "義足等",       label: "義足等（下肢障害）" },
+    { id: "手動装置",     label: "手動装置（上下肢障害）" },
+    { id: "左足ブレーキ", label: "左足ブレーキ" },
+    { id: "聴覚障害者標識", label: "聴覚障害者標識表示義務" },
+  ]},
+  { group: "昭和期の旧制度・レア条件", items: [
+    { id: "三輪に限る",      label: "三輪に限る（オート三輪）" },
+    { id: "側車付に限る",    label: "側車付に限る（サイドカー）" },
+    { id: "審査普1未済",     label: "審査普1未済（旧経過措置）" },
+    { id: "審査軽車未済",    label: "審査軽車未済（旧経過措置）" },
+  ]},
+];
+
+const SPECIAL_COND_MAP = [
+  { patterns: ["中型車は中型車(8t)に限る","8トン限定","8t限定"],
+    analysis: "### 中型車は中型車(8t)に限る\n\n**「中型車は中型車(8t)に限る」**：2007年6月2日の中型免許新設以前に取得した普通免許が自動移行されたものです。\n\n車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。2トントラックや一部のバンが対象ですが、マイクロバスは乗車定員の関係で運転できません。\n\nこの条件を外すには教習所の限定解除講習（4〜6時間程度）が必要です。" },
+  { patterns: ["準中型で運転できる準中型車は準中型車(5t)に限る","5トン限定","5t限定"],
+    analysis: "### 準中型車は準中型車(5t)に限る\n\n**「準中型車は準中型車(5t)に限る」**：2007年6月2日〜2017年3月11日に取得した普通免許が、2017年の準中型新設時に移行されたものです。\n\n車両総重量5トン未満・最大積載量3トン未満まで運転可能。小型トラックや宅配車などが対象です。" },
+  { patterns: ["大型車はマイクロバスに限る"],
+    analysis: "### 大型車はマイクロバスに限る\n\n**「大型車はマイクロバスに限る」**：1970年の法改正でマイクロバスが普通車から大型車に移行した際、6か月間だけ試験場で交付された経過措置免許です。\n\n現存する免許証では極めて稀な記載で、昭和45年前後に取得した方の証です。2007年の中型免許新設後は、この限定があっても特定中型貨物自動車の運転が可能になっています。" },
+  { patterns: ["普通車はミニカーに限る"],
+    analysis: "### 普通車はミニカーに限る\n\n**「普通車はミニカーに限る」**：1985年2月にミニカーが原付から普通車に移行した際、6か月間だけ交付された経過措置限定免許です。\n\n水色ナンバーの3輪・4輪ミニカー（50cc以下）のみ運転可能。現在は新規取得不可の幻の免許です。" },
+  { patterns: ["普通車はAT車に限る","AT車に限る"],
+    analysis: "### 普通車はAT車に限る\n\n**「普通車はAT車に限る」**：1991年導入のAT限定免許の条件表記です。\n\nMT車を運転する機会が少ない都市部や、取得コスト・時間を抑えたい方が選択するケースが多い。限定解除審査（実技のみ・数時間）で解除可能です。" },
+  { patterns: ["二輪はAT・小型二輪に限る","二輪車はAT車に限る(~125cc)"],
+    analysis: "### 二輪AT小型限定（〜125cc）\n\n**二輪AT小型限定（〜125cc）**：AT操作かつ125cc以下の二輪に限定された条件です。\n\n2022年5月の改正前に取得した二輪AT限定の条件表記。現行制度では650cc以下に緩和されています。" },
+  { patterns: ["二輪はAT・650cc以下に限る","二輪車はAT車に限る(~650cc)"],
+    analysis: "### 二輪AT限定（〜650cc）\n\n**二輪AT限定（〜650cc）**：2022年5月13日の改正で新設された区分です。\n\nAT操作のスクーターで最大650ccまで運転可能。大型スクーター（ホンダ・フォルツァ等）が対象に。" },
+  { patterns: ["普通二輪は小型二輪に限る"],
+    analysis: "### 普通二輪は小型二輪に限る\n\n**「普通二輪は小型二輪に限る」**：125cc以下のみ運転可能な条件です。\n\nかつての「自動二輪小型限定」が1996年の制度改正で移行されたもの。原付より大きく、郵便バイクや配達用バイクが対象です。" },
+  { patterns: ["自動二輪は軽二輪に限る","旧制度"],
+    analysis: "### 自動二輪は軽二輪に限る（旧制度）\n\n**「自動二輪は軽二輪に限る」（旧制度）**：1996年以前の旧制度における125cc限定条件です。\n\n1996年9月1日の制度改正で「普通二輪小型限定」に移行しています。この表記が残っている免許証は非常に稀です。" },
+  { patterns: ["大型特殊は農耕車両に限る"],
+    analysis: "### 大型特殊は農耕車両に限る\n\n**「大型特殊は農耕車両に限る」**：コンバインやトラクターなどの農業用大型特殊車両のみ運転可能な限定です。\n\n農家の方や農業従事者が取得するケースが多く、ショベルカーやクレーン車は運転できません。" },
+  { patterns: ["大型特殊は装軌車に限る"],
+    analysis: "### 大型特殊は装軌車に限る\n\n**「大型特殊は装軌車に限る」**：キャタピラ（履帯）式の車両のみ運転可能な限定です。\n\n建設機械（ブルドーザー等）の運転に使われる条件で、タイヤ式の特殊車両は対象外となります。" },
+  { patterns: ["引くことができる車はライトトレーラーに限る"],
+    analysis: "### 牽引はライトトレーラーに限る\n\n**「牽引はライトトレーラーに限る」**：750kg超〜2トン以下のライトトレーラーのみ牽引可能な限定です。\n\nキャンピングトレーラーや小型ボートトレーラーの愛好家が取得するケースが多い条件です。" },
+  { patterns: ["大型は自衛隊車両に限る"],
+    analysis: "### 大型は自衛隊車両に限る\n\n**「大型は自衛隊車両に限る」**：19歳以上で取得できる自衛官向けの特例大型免許の条件です。\n\n73式大型トラックなど自衛隊専用車両のみ運転可能で、一般の大型車は運転不可。退職後に条件削除の申請が可能ですが、予備自衛官になっても自衛隊車両は運転できなくなります。" },
+  { patterns: ["三輪に限る","自動三輪車に限る","三輪車に限る"],
+    analysis: "### 三輪に限る\n\n**「三輪に限る」**：戦後〜昭和30年代に多数走っていたオート三輪（ダイハツ・ミゼット、マツダ・T600等）専用の条件です。\n\n360cc以下の三輪自動車が庶民の輸送手段だった時代の名残。この条件が残る免許証は現在ほぼ存在せず、歴史的価値のある極めて稀な記録です。四輪普通車の運転には別途限定解除が必要でした。" },
+  { patterns: ["側車付に限る","サイドカー"],
+    analysis: "### 側車付に限る\n\n**「側車付に限る」**：サイドカー（側車付き二輪車）のみ運転可能な昭和期の限定条件です。\n\n昭和20〜30年代、サイドカーは二輪より安定した商用・家族用乗り物として普及していました。通常のソロ二輪の運転には別の限定解除が必要でした。現行制度にはこの区分が存在しないレア記録です。" },
+  { patterns: ["審査普1未済","審査軽車未済","審査○○未済"],
+    analysis: "### 審査未済の条件が記載\n\n**「審査○○未済」**：かつての経過措置で使われた「審査未済方式」の記載です。\n\n2007年の中型免許新設時に廃止され、現在は「限定条件方式」に統一されています。この表記が残っている場合は、2007年以前の古い免許証か、更新手続きがされていない可能性があります。" },
+  { patterns: ["眼鏡等"],
+    analysis: "### 眼鏡等の条件あり\n\n**「眼鏡等」**：視力矯正が必要な条件です。眼鏡・コンタクトレンズ両方が含まれます。\n\n裸眼視力が基準値（普通車：0.7以上等）に満たない場合に付与されます。" },
+  { patterns: ["深視力"],
+    analysis: "### 深視力の条件あり\n\n**「深視力」**：大型・中型・二種免許取得者に必要な奥行き知覚能力の条件です。\n\n三桿法で誤差2cm以内が基準。この条件がある方は上位免許を持つ方です。" },
+  { patterns: ["補聴器"],
+    analysis: "### 補聴器の条件あり\n\n**「補聴器」**：聴覚補助器具の使用が条件となっています。\n\n補聴器を装着することで一定の聴力（10mの距離で90デジベル以上の音を認知）を確保している方です。" },
+  { patterns: ["手動装置"],
+    analysis: "### 手動装置の条件あり\n\n**「手動装置」**：手動による加速・ブレーキ操作装置付き車両に限定される条件です。\n\n下肢障害のある方が取得するケースが多く、専用改造車両での運転が認められます。" },
+];
+
+let selectedLicenses = [];
+let selectedConditions = [];
+let selectedColor = "";
+let licenseYears = {};
+let yearInputsVisible = false;
+let firstYearDrum = null;
+const licenseYearDrums = {};
+
+function toWareki(y) {
+  if (y >= 2019) return '令和' + (y === 2019 ? '元' : y - 2018) + '年';
+  if (y >= 1989) return '平成' + (y === 1989 ? '元' : y - 1988) + '年';
+  if (y >= 1926) return '昭和' + (y === 1926 ? '元' : y - 1925) + '年';
+  if (y >= 1912) return '大正' + (y === 1912 ? '元' : y - 1911) + '年';
+  return '明治' + (y - 1867) + '年';
+}
+
+// タッチ操作でスクロールして選択する「ドラム式」ピッカー。
+// containerEl は空の <div> を想定し、中身はここで構築する。
+function createDrumPicker(containerEl, items, opts) {
+  opts = opts || {};
+  const itemHeight = opts.itemHeight || 44;
+  const visibleCount = opts.visibleCount || 3;
+  const pad = Math.floor(visibleCount / 2) * itemHeight;
+
+  containerEl.innerHTML = '';
+  containerEl.style.height = (itemHeight * visibleCount) + 'px';
+
+  const highlight = document.createElement('div');
+  highlight.className = 'drum-highlight';
+  highlight.style.height = itemHeight + 'px';
+  highlight.style.top = pad + 'px';
+  containerEl.appendChild(highlight);
+
+  const scroller = document.createElement('div');
+  scroller.className = 'drum-scroll';
+  scroller.style.paddingTop = pad + 'px';
+  scroller.style.paddingBottom = pad + 'px';
+
+  items.forEach((it, i) => {
+    const el = document.createElement('div');
+    el.className = 'drum-item';
+    el.style.height = itemHeight + 'px';
+    el.textContent = it.label;
+    el.dataset.index = i;
+    scroller.appendChild(el);
+  });
+  containerEl.appendChild(scroller);
+
+  function markSelected(idx) {
+    scroller.querySelectorAll('.drum-item').forEach((el, i) => {
+      el.classList.toggle('selected', i === idx);
+    });
+  }
+
+  let currentIndex = 0;
+
+  function settle(idx, smooth) {
+    idx = Math.max(0, Math.min(items.length - 1, idx));
+    currentIndex = idx;
+    scroller.scrollTo({ top: idx * itemHeight, behavior: smooth ? 'smooth' : 'auto' });
+    markSelected(idx);
+    if (opts.onChange) opts.onChange(items[idx].value, items[idx]);
+  }
+
+  let scrollTimer = null;
+  scroller.addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      settle(Math.round(scroller.scrollTop / itemHeight), true);
+    }, 120);
+  });
+
+  scroller.addEventListener('click', (e) => {
+    const el = e.target.closest('.drum-item');
+    if (!el) return;
+    settle(parseInt(el.dataset.index, 10), true);
+  });
+
+  const initIdx = Math.max(0, items.findIndex(it => it.value === opts.initial));
+  currentIndex = initIdx;
+  requestAnimationFrame(() => settle(initIdx, false));
+
+  return {
+    getValue: () => items[currentIndex].value,
+    setValue: (v) => {
+      const idx = items.findIndex(it => it.value === v);
+      if (idx >= 0) settle(idx, false);
+    }
+  };
+}
+
+function buildYearItems(showWareki) {
+  const items = [{ value: '', label: '-- 年 --' }];
+  const cur = new Date().getFullYear();
+  for (let y = cur; y >= 1948; y--) {
+    items.push({ value: String(y), label: y + '年' + (showWareki ? '（' + toWareki(y) + '）' : '') });
+  }
+  return items;
+}
+
+function init() {
+  firstYearDrum = createDrumPicker(document.getElementById('firstYearDrum'), buildYearItems(true), {
+    visibleCount: 5,
+    initial: ''
+  });
+
+  const lt = document.getElementById('licenseToggles');
+  LICENSE_TYPES.forEach(id => {
+    const btn = document.createElement('button');
+    btn.className = 'toggle-btn';
+    btn.textContent = id;
+    btn.onclick = () => toggleLicense(id, btn);
+    lt.appendChild(btn);
+  });
+
+  const cg = document.getElementById('condGroups');
+  CONDITION_GROUPS.forEach(group => {
+    const wrap = document.createElement('div');
+    wrap.className = 'cond-group';
+    const lbl = document.createElement('div');
+    lbl.className = 'group-label';
+    lbl.textContent = group.group;
+    wrap.appendChild(lbl);
+    const btns = document.createElement('div');
+    btns.className = 'toggles';
+    group.items.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'toggle-btn';
+      btn.textContent = item.label;
+      btn.dataset.id = item.id;
+      btn.onclick = () => toggleCondition(item.id, btn);
+      btns.appendChild(btn);
+    });
+    wrap.appendChild(btns);
+    cg.appendChild(wrap);
+  });
+}
+
+function toggleLicense(id, btn) {
+  if (selectedLicenses.includes(id)) {
+    selectedLicenses = selectedLicenses.filter(x => x !== id);
+    btn.classList.remove('active');
+  } else {
+    selectedLicenses.push(id);
+    btn.classList.add('active');
+  }
+  updateYearSection();
+}
+
+function toggleCondition(id, btn) {
+  if (selectedConditions.includes(id)) {
+    selectedConditions = selectedConditions.filter(x => x !== id);
+    btn.classList.remove('active');
+  } else {
+    selectedConditions.push(id);
+    btn.classList.add('active');
+  }
+  updateSelectedDisplay();
+}
+
+function toggleColor(btn) {
+  document.querySelectorAll('.color-btn').forEach(b => b.className = 'color-btn');
+  const color = btn.dataset.color;
+  if (selectedColor === color) {
+    selectedColor = "";
+  } else {
+    selectedColor = color;
+    const cls = color === 'グリーン' ? 'active-green' : color === 'ブルー' ? 'active-blue' : 'active-gold';
+    btn.classList.add(cls);
+  }
+}
+
+function updateSelectedDisplay() {
+  const disp = document.getElementById('selectedDisplay');
+  const txt = document.getElementById('selectedText');
+  if (selectedConditions.length > 0) {
+    const labels = selectedConditions.map(id => {
+      const item = CONDITION_GROUPS.flatMap(g => g.items).find(i => i.id === id);
+      return item ? item.label : id;
+    });
+    txt.textContent = labels.join(' / ');
+    disp.style.display = 'block';
+  } else {
+    disp.style.display = 'none';
+  }
+}
+
+function updateYearSection() {
+  const sec = document.getElementById('licenseYearSection');
+  const grid = document.getElementById('yearGrid');
+  if (selectedLicenses.length > 0) {
+    sec.style.display = 'block';
+    grid.innerHTML = '';
+    for (const key of Object.keys(licenseYearDrums)) delete licenseYearDrums[key];
+    selectedLicenses.forEach(lic => {
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.gap = '6px';
+      const lbl = document.createElement('label');
+      lbl.style.cssText = 'font-size:11px;color:var(--ink-soft);letter-spacing:0.1em;text-transform:uppercase;font-weight:600';
+      lbl.textContent = lic + ' 取得年';
+      const drumEl = document.createElement('div');
+      drumEl.className = 'drum';
+      wrap.appendChild(lbl);
+      wrap.appendChild(drumEl);
+      grid.appendChild(wrap);
+
+      licenseYearDrums[lic] = createDrumPicker(drumEl, buildYearItems(false), {
+        visibleCount: 3,
+        initial: licenseYears[lic] || '',
+        onChange: (value) => { licenseYears[lic] = value; }
+      });
+    });
+  } else {
+    sec.style.display = 'none';
+    yearInputsVisible = false;
+    grid.style.display = 'none';
+  }
+}
+
+function toggleYearInputs() {
+  yearInputsVisible = !yearInputsVisible;
+  const grid = document.getElementById('yearGrid');
+  const btn = document.querySelector('.expand-btn');
+  grid.style.display = yearInputsVisible ? 'grid' : 'none';
+  btn.textContent = (yearInputsVisible ? '▾' : '▸') + ' 各免許の取得年を個別入力（任意）';
+}
+
+function handleAnalyze() {
+  const firstYear = firstYearDrum.getValue();
+  if (!firstYear && selectedLicenses.length === 0) {
+    alert('取得年または免許種別を入力してください');
+    return;
+  }
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>解読中...';
+
+  const freeConditions = document.getElementById('freeConditions').value;
+  const result = analyze({ firstYear, licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions });
+
+  renderResult(result);
+  btn.disabled = false;
+  btn.textContent = '免許証を解読する';
+}
+
+function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, freeConditions }) {
+  const freeConds = (freeConditions || '').split(/[\n、,，]/).map(s => s.trim()).filter(Boolean);
+  const year = parseInt(firstYear) || null;
+  const results = [];
+
+  function eraLabel(y) {
+    if (y <= 1988) return '昭和' + (y-1925) + '年';
+    if (y === 1989) return '昭和64年／平成元年';
+    if (y <= 2018) return '平成' + (y-1988) + '年';
+    if (y === 2019) return '令和元年';
+    return '令和' + (y-2018) + '年';
+  }
+
+  function buildLicenseFlow(y, lics) {
+    const hasFour = lics.some(l => ["大型","中型","準中型","普通"].includes(l));
+    if (!hasFour) return null;
+
+    const steps = [];
+
+    if (y <= 2006) {
+      steps.push("普通免許を取得");
+      if (lics.includes("中型") || lics.includes("大型")) {
+        steps.push("中型免許（8t限定）へ自動移行");
+      }
+      if (lics.includes("大型")) {
+        if (lics.includes("中型")) steps.push("中型免許（限定解除）を取得");
+        steps.push("大型免許を取得");
+      }
+    } else if (y <= 2016) {
+      steps.push("普通免許を取得");
+      if (lics.includes("準中型") || lics.includes("中型") || lics.includes("大型")) {
+        steps.push("準中型免許（5t限定）へ自動移行");
+      }
+      if (lics.includes("中型") || lics.includes("大型")) {
+        steps.push("中型免許を取得");
+      }
+      if (lics.includes("大型")) {
+        steps.push("大型免許を取得");
+      }
+    } else {
+      steps.push("普通免許を取得");
+      if (lics.includes("準中型") || lics.includes("中型") || lics.includes("大型")) {
+        steps.push("準中型免許を取得");
+      }
+      if (lics.includes("中型") || lics.includes("大型")) {
+        steps.push("中型免許を取得");
+      }
+      if (lics.includes("大型")) {
+        steps.push("大型免許を取得");
+      }
+    }
+
+    return steps.length > 0 ? steps : null;
+  }
+
+  if (year) {
+    const flow = buildLicenseFlow(year, licenses);
+    const conclusionLine = flow
+      ? "### " + flow.join(" → ")
+      : "### " + year + "年（" + eraLabel(year) + "）頃に最初の免許を取得";
+
+    if (year <= 1974)      results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1974年以前**の取得です。当時は二輪免許の排気量区分が存在せず、「自動二輪免許」一本でした。マイカーブームの黎明期にあたり、免許取得は一大イベントだったはずです。");
+    else if (year <= 1979) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1970年代後半**の取得です。1975年に二輪免許が排気量別に分かれた直後の世代。オイルショック後の時代で、燃費の良いバイク通勤が流行した時期でもあります。");
+    else if (year <= 1988) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**バブル期前後**（1980年代）の取得です。空前のバイクブーム（ナナハンブーム）が到来し、若者の間で大型二輪への憧れが強かった時代。CBX・Z1000・カタナが街を走り回っていました。");
+    else if (year === 1989) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**バブル期前後**（1980年代末）の取得です。空前のバイクブーム（ナナハンブーム）が到来し、若者の間で大型二輪への憧れが強かった時代。CBX・Z1000・カタナが街を走り回っていました。");
+    else if (year <= 1999) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1990年代**の取得です。AT限定免許が1991年に導入された時代。バブル崩壊後でも自動車保有率は上昇し続け、AT車の普及で女性ドライバーが急増した時期です。");
+    else if (year <= 2006) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2000年代前半**の取得です。2007年の中型免許新設直前の世代。この時期に普通免許を取得した方は、後に**8トン限定中型**として自動移行されています。");
+    else if (year <= 2016) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2007〜2016年**の取得です。中型免許（2007年新設）が既に存在する時代。この時期の普通免許は車両総重量5トン未満・最大積載量3トン未満に制限されており、2017年の準中型新設後は**5トン限定準中型**として移行されています。");
+    else if (year <= 2018) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2017年以降**の取得です。準中型免許（2017年3月新設）が存在する現行制度下での取得。普通免許で運転できる車両は車両総重量3.5トン未満に限定されています。");
+    else                   results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2017年以降**の取得です。準中型免許（2017年3月新設）が存在する現行制度下での取得。普通免許で運転できる車両は車両総重量3.5トン未満に限定されています。");
+  }
+
+  const la = [];
+
+  if (licenses.includes("準中型")) {
+    if (year && year < 2017)
+      la.push("### 準中型免許（5トン限定）へ自動移行\n\n**準中型（5トン限定）**：2007〜2016年取得の普通免許が2017年の制度改正で自動移行されたものです。車両総重量5トン未満・最大積載量3トン未満まで運転可能。");
+    else
+      la.push("### 準中型免許を取得\n\n**準中型免許**：現行制度で正規取得。18歳から取得でき、宅配業界で重宝される免許です。");
+  }
+
+  if (licenses.includes("中型")) {
+    if (year && year < 2007)
+      la.push("### 中型免許（8トン限定）へ自動移行\n\n**中型免許（8トン限定）**：2007年以前に取得した普通免許が2007年の制度改正で自動移行されたものです。車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。");
+    else if (year && year <= 2016 && licenses.includes("大型"))
+      la.push("### 中型免許を取得（限定解除または正規取得）\n\n**中型免許**：自動移行された準中型（5t限定）から限定解除審査を経て、または正規に中型免許を取得しています。車両総重量11トン未満まで運転可能。大型取得への必須ステップです。");
+    else
+      la.push("### 中型免許を取得\n\n**中型免許**：試験場または教習所で中型免許を正規取得しています。車両総重量11トン未満まで運転可能。");
+  } else if (licenses.includes("大型") && year && year <= 2016) {
+    la.push("### 中型免許を取得（経由）\n\n**中型免許**：大型免許取得の前提として中型免許（または限定解除）を経ています。車両総重量11トン未満まで運転可能。");
+  }
+
+  if (licenses.includes("大型"))
+    la.push("### 大型免許を取得\n\n**大型免許**：トレーラーや大型トラックの運転が可能。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
+  if (licenses.includes("大型二輪"))
+    la.push(year && year < 1996 ? "### 大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。" : "### 大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
+  if (licenses.includes("普通二輪"))
+    la.push("### 普通二輪免許を取得\n\n**普通二輪免許**：400cc以下のバイクが運転可能。" + (conditions.includes("普通車はAT車に限る") ? "AT限定付きのため、クラッチ操作不要のスクーター系に限定されます。" : "MT・ATどちらも運転可能です。"));
+  if (licenses.includes("大型二種"))
+    la.push("### 大型二種免許を取得\n\n**大型二種免許**：路線バスや観光バスの運転が可能。プロのバス運転士か、二種免許コレクターの方でしょう。");
+  if (licenses.includes("牽引"))
+    la.push("### 牽引免許を取得\n\n**牽引免許**：トレーラーや重機運搬車の牽引が可能。物流・建設業界のプロか、キャンピングトレーラー愛好家の可能性があります。");
+  if (la.length > 0) results.push("## 📋 免許種別の読み解き\n\n" + la.join("\n\n"));
+
+  const allConds = [...conditions, ...freeConds];
+  const seen = new Set();
+  const ca = [];
+  for (const cond of allConds) {
+    const matched = SPECIAL_COND_MAP.find(m => m.patterns.some(p => cond.includes(p) || p.includes(cond)));
+    if (matched && !seen.has(matched.analysis)) {
+      ca.push(matched.analysis);
+      seen.add(matched.analysis);
+    } else if (!matched && cond.length > 0) {
+      ca.push(`**「${cond}」**：免許証に記載された条件です。制度変遷の中で付与された特殊な条件の可能性があります。`);
+    }
+  }
+  if (ca.length > 0) results.push("## 📜 条件欄の解読\n\n" + ca.join("\n\n"));
+
+  if (licenseColor) {
+    const colorMap = {
+      "グリーン": "取得後3年未満のフレッシュドライバーです。まだゴールド・ブルーへの分岐点に達していません。",
+      "ブルー":   "違反または事故の記録がある、または免許取得から3〜5年経過中です。安全運転を心がけましょう。",
+      "ゴールド": "直近5年間無事故・無違反のゴールド免許保持者です！優良ドライバーの証。保険料割引などの特典があります。"
+    };
+    results.push("## 🎨 免許証の色\n\n### " + licenseColor + "免許証\n\n" + colorMap[licenseColor]);
+  }
+
+  let story = "## 🔍 総合推測ストーリー\n\n";
+  if (year && licenses.length > 0) {
+    story += `${year}年頃に免許取得を開始し、`;
+    story += licenses.length === 1 ? `${licenses[0]}免許のみを保持するシンプルな免許歴です。` : `その後${licenses.join('・')}と複数の免許を積み重ねてきた、経験豊富なドライバーです。`;
+    if (licenses.includes("大型") || licenses.includes("大型二輪") || licenses.includes("牽引"))
+      story += "\n\n職業上の必要性か、強い向上心から上位免許を取得してきた印象があります。";
+  } else if (licenses.length > 0) {
+    story += `${licenses.join('・')}を保持しています。`;
+  } else {
+    story += "情報が少ないため詳細な推測が困難ですが、入力を増やすとより詳しく分析できます。";
+  }
+  results.push(story);
+
+  return results.join("\n\n---\n\n");
+}
+
+function renderResult(text) {
+  const card = document.getElementById('resultCard');
+  const body = document.getElementById('resultBody');
+  body.innerHTML = '';
+  card.style.display = 'block';
+
+  const lines = text.split('\n');
+  lines.forEach(line => {
+    if (line.startsWith('## ')) {
+      const h = document.createElement('h3');
+      h.textContent = line.slice(3);
+      body.appendChild(h);
+    } else if (line.startsWith('### ')) {
+      const h = document.createElement('h4');
+      h.textContent = line.slice(4);
+      body.appendChild(h);
+    } else if (line === '---') {
+      body.appendChild(document.createElement('hr'));
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      const d = document.createElement('div');
+      d.className = 'bullet';
+      d.innerHTML = '<span class="bullet-mark">▸</span><span class="bullet-text">' + renderInline(line.slice(2)) + '</span>';
+      body.appendChild(d);
+    } else if (line.trim() === '') {
+      const sp = document.createElement('div');
+      sp.style.height = '8px';
+      body.appendChild(sp);
+    } else {
+      const p = document.createElement('p');
+      p.innerHTML = renderInline(line);
+      body.appendChild(p);
+    }
+  });
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderInline(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+}
+
+init();
+</script>
+</body>
+</html>
