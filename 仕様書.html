@@ -187,6 +187,11 @@
   }
   .note strong { color: var(--accent-dark); }
 
+  table.spec-table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 13.5px; }
+  table.spec-table th, table.spec-table td { border: 1px solid var(--border-soft); padding: 7px 9px; text-align: left; line-height: 1.6; }
+  table.spec-table th { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+  table.spec-table td { color: var(--ink-soft); }
+
   .meta-line {
     font-family: -apple-system, 'Hiragino Sans', sans-serif;
     font-size: 11.5px;
@@ -206,7 +211,7 @@
     <div class="header-sub">SPECIFICATION</div>
     <h1>ait11 - 運転免許取得経緯推定<br>（免許証 経歴解読）</h1>
     <p>本ページは <code>仕様書.md</code> をスマートフォンで読みやすいよう再構成したものです。<br>内容を変更する場合は <code>仕様書.md</code> 側も合わせて更新してください。</p>
-    <div class="meta-line">最終更新：2026-08-02</div>
+    <div class="meta-line">最終更新：2026-08-04</div>
     <div class="header-divider"></div>
   </div>
 
@@ -214,6 +219,7 @@
     <a href="#overview">概要</a>
     <a href="#howto">使い方</a>
     <a href="#logic">解析ロジック</a>
+    <a href="#ages">年齢・経験年数</a>
     <a href="#eras">年境界</a>
     <a href="#ui">UI実装メモ</a>
     <a href="#limits">既知の制約</a>
@@ -221,11 +227,11 @@
 
   <section id="overview">
     <h2>概要</h2>
-    <p class="lead">免許証の券面情報（最初の取得年・免許証の色・所持免許種別・条件欄の記載）を入力すると、免許制度の変遷（中型・準中型の新設、AT限定制度、経過措置等）に基づいて、その人がどういう順序・時代背景で免許を取得してきたかをロジックベースで推測し、読み物として表示するエンタメ寄りのツールです。</p>
+    <p class="lead">免許証の券面情報（生年月日・「二・小・原／他／二種」の各初回取得年月日・免許証の色・所持免許種別・条件欄の記載）を入力すると、免許制度の変遷（中型・準中型の新設、AT限定制度、1996年の二輪免許再編、2022年の19歳特例、経過措置等）に基づいて、その人がどういう順序・時代背景で免許を取得してきたかをロジックベースで推測し、読み物として表示するエンタメ寄りのツールです。あわせて、法定の取得可能年齢や必要経験年数との整合性チェックも行います。</p>
     <p>ait03〜ait06（運転条件案内アプリ群）とは異なり、Next.js等のビルド環境を使わない<strong style="color:var(--ink)">単一の静的HTMLファイル</strong>（<code>license-history.html</code>）として実装されています。ビルド・依存パッケージ・サーバーが一切不要で、ファイルをダブルクリック（またはブラウザで開く）するだけでスマートフォン・PCどちらでも動作します。</p>
     <ul>
-      <li>分析結果は法的な正式判定ではなく<strong style="color:var(--ink)">推測</strong>である旨をフッターに明記</li>
-      <li>出典管理（<code>SourceCitation</code>等）はait03〜06ほど厳密ではない。昭和期のレア条件（三輪限定・側車付限定・審査未済等）の解説は一般的な知識に基づく簡易な説明文で、個々に一次資料の引用は付けていない</li>
+      <li>分析結果は法的な正式判定ではなく<strong style="color:var(--ink)">推測</strong>である旨をフッターおよび結果末尾の出典セクションに明記</li>
+      <li>出典管理（<code>SourceCitation</code>等）はait03〜06ほど厳密ではない。昭和期のレア条件（三輪限定・側車付限定・審査未済等）の解説は一般的な知識に基づく簡易な説明文で、個々に一次資料の引用は付けていない。結果末尾の「出典・参考にした制度情報」も法令名・改正施行日のみを記載し、条文番号やURLは断定していない</li>
     </ul>
   </section>
 
@@ -233,9 +239,15 @@
     <h2>使い方・入力項目</h2>
 
     <div class="field-card">
-      <span class="field-name">最初の免許取得年</span>
-      <div class="field-how">ドラム（ホイール）ピッカーで年を選択</div>
-      <div class="field-note">1948年〜当年まで。西暦と元号を併記（例：2007年（平成19年））</div>
+      <span class="field-name">生年月日（任意）</span>
+      <div class="field-how"><code>&lt;input type="date"&gt;</code></div>
+      <div class="field-note">入力すると年齢の整合性チェック・ゴールド免許の有効期間・高齢者講習等の年齢依存項目も解読対象になる。入力直後に和暦（例：昭和60年8月3日）をヒント表示</div>
+    </div>
+
+    <div class="field-card">
+      <span class="field-name">券面記載の取得年月日（任意）</span>
+      <div class="field-how">「二・小・原」「他」「二種」の3つの <code>&lt;input type="date"&gt;</code></div>
+      <div class="field-note">実際の免許証表面に印字されている3区分（二・小・原＝二輪・小型特殊・原付／他＝普通・準中型・中型・大型・大型特殊・牽引／二種）の初回取得年月日をそのまま入力する。時代背景・免許種別の読み解き・年齢と経験年数の整合性チェックはこの日付を基準に行う。各欄とも入力直後に和暦をヒント表示</div>
     </div>
 
     <div class="field-card">
@@ -253,7 +265,7 @@
     <div class="field-card">
       <span class="field-name">各免許の取得年（任意）</span>
       <div class="field-how">選択した免許ごとにドラムピッカーで個別入力</div>
-      <div class="field-note">折りたたみ式。現状 <code>analyze()</code> 内では未使用の入力値（将来の精度向上用に保持）</div>
+      <div class="field-note">折りたたみ式。大型・二種など経験年数チェック対象の免許では、この個別入力値が「他」の日付との差分計算に使われる</div>
     </div>
 
     <div class="field-card">
@@ -262,21 +274,31 @@
       <div class="field-note">グループ：制度移行による限定／AT限定／二輪の排気量・車種限定／大型特殊の限定／牽引の限定／自衛隊関連／身体的条件／昭和期の旧制度・レア条件</div>
     </div>
 
-    <p style="margin-top:14px">「免許証を解読する」ボタン押下で <code>analyze()</code> を実行し、結果カードに解析結果を表示します。取得年・免許種別のどちらも未入力の場合はアラートで入力を促します。</p>
+    <p style="margin-top:14px">「推定開始」ボタン押下で <code>analyze()</code> を実行し、結果カードに解析結果を表示します。券面記載の取得年月日（二・小・原／他／二種のいずれか）と免許種別のどちらも未入力の場合はアラートで入力を促します。</p>
+
+    <div class="note"><strong>廃止された入力欄：</strong>かつて存在した「最初の免許取得年」という単独の年ドラム入力は廃止されています。理由は、この情報が実際の免許証券面にそのまま印字されていないため（券面に印字されているのは「二・小・原」「他」「二種」の3区分の日付のみ）。時代背景等の判定に必要な年は、これら実在する日付から導出します。</div>
   </section>
 
   <section id="logic">
     <h2>解析ロジック（<code>analyze()</code>）</h2>
-    <p>入力年・免許種別・条件から、以下のセクションを順に組み立てて1つのMarkdown風テキストにし、簡易パーサー（<code>renderResult()</code>）でHTMLに変換して表示します。</p>
+    <p>入力・免許種別・条件から、以下のセクションを条件が揃った場合のみ順に組み立てて1つのMarkdown風テキストにし、簡易パーサー（<code>renderResult()</code>）でHTMLに変換して表示します。</p>
 
     <ol class="step-list">
       <li>
         <span class="step-title">🕰️ 取得の時代背景</span>
-        最初の取得年から「いつ・どの制度の順で免許を積み上げたか」を <code>buildLicenseFlow()</code> が復元し（例：普通免許取得 → 中型免許（8t限定）へ自動移行 → 大型免許を取得）、さらに取得年が属する時代区分（〜1974／〜1979／〜1988／1989／〜1999／〜2006／〜2016／〜2018／それ以降）ごとに固定の時代解説文を付ける。
+        「他」の初回取得年（<code>carYear</code>。無ければ「二・小・原」の年を <code>primaryYear</code> として代用）を基準に、「いつ・どの制度の順で車系免許を積み上げたか」を <code>buildLicenseFlow()</code> が復元し（例：普通免許取得 → 中型免許（8t限定）へ自動移行 → 大型免許を取得）、さらに年が属する時代区分（〜1974／〜1979／〜1988／1989／〜1999／〜2006／〜2016／〜2018／それ以降）ごとに固定の時代解説文を付ける。日付が一つも入力されていない場合はこのセクション自体を省略する。
       </li>
       <li>
         <span class="step-title">📋 免許種別の読み解き</span>
-        所持免許種別ごとに、取得年との関係で「自動移行」「限定解除」「正規取得」等の解説文を組み立てる。中型・準中型は8t/5t限定への自動移行が起きる年境界（2007年・2017年）で分岐、普通二輪はAT限定条件の有無で説明文が変わる。
+        車系（準中型・中型・大型）は「他」の年（<code>carYear</code>）を基準に「自動移行」「限定解除」「正規取得」等の解説文を組み立てる（8t/5t限定への自動移行が起きる2007年・2017年の年境界で分岐）。二輪系（原付・普通二輪・大型二輪）は2つ以上選択されている場合、ステップアップの流れ（例：原付 → 普通二輪 → 大型二輪）を先頭に表示し、取得年が1996年より前と判定された場合は当時の正式名称（自動二輪車(中型限定)＝現・普通二輪、自動二輪車(限定なし)＝現・大型二輪）で表記する。大型二種・牽引は固定解説。
+      </li>
+      <li>
+        <span class="step-title">⚠️ 年齢との整合性</span>
+        生年月日が入力されている場合、所持免許種別ごとに取得年（個別入力優先。無ければ免許の系統に応じ「二種」→二種の日付、二輪系→「二・小・原」、車系→「他」をフォールバック）における推定年齢を計算し、法定の最低取得年齢（19歳特例含む）を下回っていないか警告する。
+      </li>
+      <li>
+        <span class="step-title">⚠️ 券面記載日との整合性 ／ 🛣️ 取得トラックの読み解き</span>
+        「二・小・原」「他」「二種」のいずれかの日付が入力されている場合に実行。各日付時点の推定年齢が最低取得可能年齢を満たすか、大型・二種免許の取得に必要な経験年数（大型3年・19歳特例なら1年／二種3年）を満たしているかをチェックし、あわせてどちらの系統を先に取得したかのナラティブや「プロドライバー歴」の年数を表示する。
       </li>
       <li>
         <span class="step-title">📜 条件欄の解読</span>
@@ -284,13 +306,37 @@
       </li>
       <li>
         <span class="step-title">🎨 免許証の色</span>
-        グリーン／ブルー／ゴールドそれぞれの固定解説文を表示。
+        グリーン／ブルー／ゴールドそれぞれの固定解説文を表示。ゴールドかつ生年月日が入力されている場合、現在の推定年齢が70歳以上かどうかで次回更新の有効期間（3年／5年）の違いを追記。
+      </li>
+      <li>
+        <span class="step-title">👴 高齢運転者への制度上の注意</span>
+        現在の推定年齢が70歳以上の場合に表示。70歳以上は高齢者講習、75歳以上はさらに認知機能検査・（違反歴によっては）運転技能検査が必要である旨を解説。
       </li>
       <li>
         <span class="step-title">🔍 総合推測ストーリー</span>
-        取得年・免許種別の組み合わせから、経験豊富さ等を総括する1〜2文の締めくくりを生成。
+        現在の推定年齢と取得年・免許種別の組み合わせから、経験豊富さ等を総括する1〜2文の締めくくりを生成。
+      </li>
+      <li>
+        <span class="step-title">📚 出典・参考にした制度情報</span>
+        常に末尾に固定表示。根拠とした法令・改正施行日を列挙し、「本ツールの分析はロジックベースの推測であり正式な証明・鑑定ではない」旨を明記する。
       </li>
     </ol>
+  </section>
+
+  <section id="ages">
+    <h2>取得可能年齢・経験年数の基準（コード内定数）</h2>
+    <table class="spec-table">
+      <tr><th>免許区分</th><th>最低取得年齢</th><th>19歳特例（2022年5月13日以降）</th></tr>
+      <tr><td>原付・小型特殊・普通二輪</td><td>16歳</td><td>-</td></tr>
+      <tr><td>大型二輪・普通・準中型・大型特殊・牽引</td><td>18歳</td><td>-</td></tr>
+      <tr><td>中型</td><td>20歳</td><td>19歳（要1年経験）</td></tr>
+      <tr><td>大型・大型二種・中型二種・普通二種</td><td>21歳</td><td>19歳（大型は要1年経験、二種は要3年経験）</td></tr>
+    </table>
+    <table class="spec-table">
+      <tr><th>チェック対象</th><th>必要経験年数（「他」初回取得からの通算）</th></tr>
+      <tr><td>大型免許</td><td>3年（19歳特例条件下は1年）</td></tr>
+      <tr><td>大型二種・中型二種・普通二種</td><td>3年（特例でも短縮なし）</td></tr>
+    </table>
   </section>
 
   <section id="eras">
@@ -305,8 +351,8 @@
         <div class="timeline-desc">AT限定免許の導入</div>
       </div>
       <div class="timeline-item">
-        <div class="timeline-year">1996年</div>
-        <div class="timeline-desc">「自動二輪（軽二輪限定）」→「普通二輪（小型限定）」等へ移行</div>
+        <div class="timeline-year">1996年9月1日</div>
+        <div class="timeline-desc">「自動二輪車(小型限定・中型限定・限定なし)」→「大型二輪／普通二輪」等の現行名称へ移行</div>
       </div>
       <div class="timeline-item">
         <div class="timeline-year">2007年6月2日</div>
@@ -318,7 +364,7 @@
       </div>
       <div class="timeline-item">
         <div class="timeline-year">2022年5月13日</div>
-        <div class="timeline-desc">二輪AT限定が650ccまで緩和</div>
+        <div class="timeline-desc">二輪AT限定が650ccまで緩和。中型・大型・二種免許の19歳特例（実務経験1年／二種3年）が導入</div>
       </div>
     </div>
     <div class="note">これらの年境界は本仕様書作成時点でコード内にハードコードされているのみで、外部の一次資料への出典リンクは付与していません（ait03〜06のような <code>SourceCitation</code> 管理の対象外）。制度の詳細を厳密に扱う必要が生じた場合は、ait03〜06で確立した「e-Gov法令API等の一次資料を直接fetchする」手法を踏襲するのが望ましいです。</div>
@@ -328,7 +374,9 @@
     <h2>UI実装メモ</h2>
     <ul>
       <li><strong style="color:var(--ink)">配色（2026-08-02改訂）</strong>：初期実装は濃茶〜黒の背景に金文字という視認性の低い配色だったため、暖色系の明るいテーマ（クリーム背景 <code>#f4efe0</code>／濃茶文字／アンバー系アクセント <code>#a9761f</code>）に変更。CSS変数（<code>:root</code>）で一元管理。</li>
-      <li><strong style="color:var(--ink)">年入力（2026-08-02改訂）</strong>：スマートフォンでの利用を想定し、<code>&lt;select&gt;</code>によるプルダウンから、指でスクロールして選ぶ<strong style="color:var(--ink)">ドラム（ホイール）ピッカー</strong>（<code>createDrumPicker()</code>、CSS <code>scroll-snap-type: y mandatory</code> ベース）に置き換えた。中央の枠内にスクロールで止まった項目が選択され、上下の項目はマスクでフェードアウトする。項目タップでも該当位置へスナップして選択可能。「最初の免許取得年」は5行表示、各免許の個別取得年は3行表示。</li>
+      <li><strong style="color:var(--ink)">各免許の個別取得年入力</strong>：スマートフォンでの利用を想定し、<code>&lt;select&gt;</code>によるプルダウンから、指でスクロールして選ぶ<strong style="color:var(--ink)">ドラム（ホイール）ピッカー</strong>（<code>createDrumPicker()</code>、CSS <code>scroll-snap-type: y mandatory</code> ベース）で入力する。中央の枠内にスクロールで止まった項目が選択され、上下の項目はマスクでフェードアウトする。項目タップでも該当位置へスナップして選択可能（3行表示）。</li>
+      <li><strong style="color:var(--ink)">生年月日・券面記載の取得年月日（2026-08-03〜04改訂）</strong>：ネイティブの <code>&lt;input type="date"&gt;</code> を使用（ドラムピッカーではない）。OS標準のカレンダーUIには和暦を表示させられないため、<code>oninput</code> で <code>updateWarekiHint()</code> を呼び、入力直後にJS側で計算した和暦を各欄の下にヒントテキストとして表示する（例：「（昭和60年8月3日）」）。</li>
+      <li>「最初の免許取得年」のドラムピッカーは廃止済み（使い方セクション参照）。これに伴い <code>buildYearItems()</code> は和暦表示オプション引数を廃止し、常に西暦のみのラベルを返す（唯一の呼び出し元が各免許の個別取得年ドラムのみになったため）。</li>
       <li>依存ライブラリなし（vanilla JS、フレームワーク不使用）。ファイル単体で完結するため、配布はこのHTMLファイルをコピーするだけでよい。</li>
     </ul>
   </section>
@@ -336,8 +384,9 @@
   <section id="limits">
     <h2>既知の制約</h2>
     <ul>
-      <li><code>licenseYears</code>（各免許の個別取得年）は入力・保持されるが、<code>analyze()</code> の判定ロジックには現状組み込まれていない（最初の取得年のみで時代背景・移行フローを推測している）。</li>
+      <li>大型・二種の経験年数チェック（<code>checkCardDateConsistency</code>）は、「他」の初回取得日<strong style="color:var(--ink)">と</strong>当該免許の個別取得年（<code>licenseYears</code>）の<strong style="color:var(--ink)">両方</strong>が入力されている場合のみ機能する。個別取得年が未入力の場合、このチェックはスキップされる。</li>
       <li>条件欄の自由入力はカンマ・読点・改行区切りでパースするのみで、表記ゆれ（全角/半角、助詞の有無等）への強いマッチングは行っていない。</li>
+      <li>結果末尾の「出典・参考にした制度情報」は固定の一覧であり、その回の分析で実際にどのロジックが使われたかに応じた出典の絞り込みは行っていない。</li>
     </ul>
   </section>
 

@@ -252,12 +252,8 @@
       <div class="wareki-hint" id="birthDateWareki"></div>
     </div>
     <div class="field">
-      <label class="field-label">最初の免許取得年</label>
-      <div class="drum" id="firstYearDrum"></div>
-    </div>
-    <div class="field">
-      <label class="field-label">券面記載の取得年月日（任意・詳細分析用）</label>
-      <div class="field-hint">免許証表面の「二・小・原」「他」「二種」の各初回取得年月日をそのまま入力すると、経験年数に基づくより精密な分析ができます。</div>
+      <label class="field-label">券面記載の取得年月日（任意）</label>
+      <div class="field-hint">免許証表面の「二・小・原」「他」「二種」の各初回取得年月日をそのまま入力してください。時代背景や経験年数に基づく分析はこの情報を基に行います。</div>
       <div class="group-label">二・小・原（二輪・小型特殊・原付）</div>
       <input type="date" id="dateNikogen" style="margin-bottom:4px" oninput="updateWarekiHint('dateNikogen','dateNikogenWareki')">
       <div class="wareki-hint" id="dateNikogenWareki" style="margin-bottom:10px"></div>
@@ -451,7 +447,7 @@ function dateDiffYears(fromDate, toDate) {
   return years;
 }
 
-function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, licenses, year) {
+function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, licenses, licenseYears) {
   const notes = [];
 
   if (birth && dateNikogen) {
@@ -470,7 +466,7 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
   }
 
   if (dateOther && licenses.includes("大型")) {
-    const acqYear = parseInt(year) || null;
+    const acqYear = parseInt(licenseYears["大型"]) || null;
     if (acqYear) {
       const exp = acqYear - dateOther.y;
       const tokureiApplicable = acqYear >= TOKUREI_START_YEAR;
@@ -489,7 +485,7 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
   return notes;
 }
 
-function checkAgeConsistency(birth, firstYear, licenses, licenseYears, nikogen, other, nishu) {
+function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nishu) {
   const notes = [];
   licenses.forEach(lic => {
     const minAge = MIN_AGE[lic];
@@ -498,7 +494,7 @@ function checkAgeConsistency(birth, firstYear, licenses, licenseYears, nikogen, 
       : BIKE_TRACK_TYPES.includes(lic) ? (nikogen && nikogen.y)
       : CAR_TRACK_TYPES.includes(lic) ? (other && other.y)
       : null;
-    const acqYear = parseInt(licenseYears[lic]) || trackFallback || firstYear;
+    const acqYear = parseInt(licenseYears[lic]) || trackFallback;
     if (!acqYear) return;
     const approxAge = acqYear - birth.y;
     const tokureiApplicable = acqYear >= TOKUREI_START_YEAR && TOKUREI_MIN_AGE[lic] != null;
@@ -515,7 +511,6 @@ let selectedConditions = [];
 let selectedColor = "";
 let licenseYears = {};
 let yearInputsVisible = false;
-let firstYearDrum = null;
 const licenseYearDrums = {};
 
 function toWareki(y) {
@@ -601,21 +596,16 @@ function createDrumPicker(containerEl, items, opts) {
   };
 }
 
-function buildYearItems(showWareki) {
+function buildYearItems() {
   const items = [{ value: '', label: '-- 年 --' }];
   const cur = new Date().getFullYear();
   for (let y = cur; y >= 1948; y--) {
-    items.push({ value: String(y), label: y + '年' + (showWareki ? '（' + toWareki(y) + '）' : '') });
+    items.push({ value: String(y), label: String(y) + '年' });
   }
   return items;
 }
 
 function init() {
-  firstYearDrum = createDrumPicker(document.getElementById('firstYearDrum'), buildYearItems(true), {
-    visibleCount: 5,
-    initial: ''
-  });
-
   const lt = document.getElementById('licenseToggles');
   LICENSE_TYPES.forEach(id => {
     const btn = document.createElement('button');
@@ -718,7 +708,7 @@ function updateYearSection() {
       wrap.appendChild(drumEl);
       grid.appendChild(wrap);
 
-      licenseYearDrums[lic] = createDrumPicker(drumEl, buildYearItems(false), {
+      licenseYearDrums[lic] = createDrumPicker(drumEl, buildYearItems(), {
         visibleCount: 3,
         initial: licenseYears[lic] || '',
         onChange: (value) => { licenseYears[lic] = value; }
@@ -740,9 +730,11 @@ function toggleYearInputs() {
 }
 
 function handleAnalyze() {
-  const firstYear = firstYearDrum.getValue();
-  if (!firstYear && selectedLicenses.length === 0) {
-    alert('取得年または免許種別を入力してください');
+  const dateNikogen = document.getElementById('dateNikogen').value;
+  const dateOther = document.getElementById('dateOther').value;
+  const dateNishu = document.getElementById('dateNishu').value;
+  if (!dateNikogen && !dateOther && !dateNishu && selectedLicenses.length === 0) {
+    alert('取得年月日または免許種別を入力してください');
     return;
   }
   const btn = document.getElementById('analyzeBtn');
@@ -751,17 +743,14 @@ function handleAnalyze() {
 
   const freeConditions = document.getElementById('freeConditions').value;
   const birthDate = document.getElementById('birthDate').value;
-  const dateNikogen = document.getElementById('dateNikogen').value;
-  const dateOther = document.getElementById('dateOther').value;
-  const dateNishu = document.getElementById('dateNishu').value;
-  const result = analyze({ firstYear, licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu });
+  const result = analyze({ licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu });
 
   renderResult(result);
   btn.disabled = false;
   btn.textContent = '推定開始';
 }
 
-function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu }) {
+function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu }) {
   const freeConds = (freeConditions || '').split(/[\n、,，]/).map(s => s.trim()).filter(Boolean);
   const birth = parseBirthDate(birthDate);
   const currentAge = birth ? calcCurrentAge(birth) : null;
@@ -769,10 +758,10 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
   const other = parseBirthDate(dateOther);
   const nishu = parseBirthDate(dateNishu);
 
-  let year = parseInt(firstYear) || null;
-  if (!year && (nikogen || other)) {
-    year = Math.min(...[nikogen, other].filter(Boolean).map(d => d.y));
-  }
+  // 車系（普通・準中型・中型・大型等）の制度改正判定は「他」の初回取得日を基準にする
+  const carYear = other ? other.y : null;
+  // 時代背景・総合ストーリーは「他」を優先し、無ければ「二・小・原」を基準にする
+  const primaryYear = other ? other.y : (nikogen ? nikogen.y : null);
 
   const results = [];
 
@@ -826,40 +815,40 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
     return steps.length > 0 ? steps : null;
   }
 
-  if (year) {
-    const flow = buildLicenseFlow(year, licenses);
+  if (primaryYear) {
+    const flow = carYear ? buildLicenseFlow(carYear, licenses) : null;
     const conclusionLine = flow
       ? "### " + flow.join(" → ")
-      : "### " + year + "年（" + eraLabel(year) + "）頃に最初の免許を取得";
+      : "### " + primaryYear + "年（" + eraLabel(primaryYear) + "）頃に最初の免許を取得";
 
-    if (year <= 1974)      results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1974年以前**の取得です。当時は二輪免許の排気量区分が存在せず、「自動二輪免許」一本でした。マイカーブームの黎明期にあたり、免許取得は一大イベントだったはずです。");
-    else if (year <= 1979) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1970年代後半**の取得です。1975年に二輪免許が排気量別に分かれた直後の世代。オイルショック後の時代で、燃費の良いバイク通勤が流行した時期でもあります。");
-    else if (year <= 1988) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**バブル期前後**（1980年代）の取得です。空前のバイクブーム（ナナハンブーム）が到来し、若者の間で大型二輪への憧れが強かった時代。CBX・Z1000・カタナが街を走り回っていました。");
-    else if (year === 1989) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**バブル期前後**（1980年代末）の取得です。空前のバイクブーム（ナナハンブーム）が到来し、若者の間で大型二輪への憧れが強かった時代。CBX・Z1000・カタナが街を走り回っていました。");
-    else if (year <= 1999) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1990年代**の取得です。AT限定免許が1991年に導入された時代。バブル崩壊後でも自動車保有率は上昇し続け、AT車の普及で女性ドライバーが急増した時期です。");
-    else if (year <= 2006) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2000年代前半**の取得です。2007年の中型免許新設直前の世代。この時期に普通免許を取得した方は、後に**8トン限定中型**として自動移行されています。");
-    else if (year <= 2016) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2007〜2016年**の取得です。中型免許（2007年新設）が既に存在する時代。この時期の普通免許は車両総重量5トン未満・最大積載量3トン未満に制限されており、2017年の準中型新設後は**5トン限定準中型**として移行されています。");
-    else if (year <= 2018) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2017年以降**の取得です。準中型免許（2017年3月新設）が存在する現行制度下での取得。普通免許で運転できる車両は車両総重量3.5トン未満に限定されています。");
+    if (primaryYear <= 1974)      results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1974年以前**の取得です。当時は二輪免許の排気量区分が存在せず、「自動二輪免許」一本でした。マイカーブームの黎明期にあたり、免許取得は一大イベントだったはずです。");
+    else if (primaryYear <= 1979) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1970年代後半**の取得です。1975年に二輪免許が排気量別に分かれた直後の世代。オイルショック後の時代で、燃費の良いバイク通勤が流行した時期でもあります。");
+    else if (primaryYear <= 1988) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**バブル期前後**（1980年代）の取得です。空前のバイクブーム（ナナハンブーム）が到来し、若者の間で大型二輪への憧れが強かった時代。CBX・Z1000・カタナが街を走り回っていました。");
+    else if (primaryYear === 1989) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**バブル期前後**（1980年代末）の取得です。空前のバイクブーム（ナナハンブーム）が到来し、若者の間で大型二輪への憧れが強かった時代。CBX・Z1000・カタナが街を走り回っていました。");
+    else if (primaryYear <= 1999) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1990年代**の取得です。AT限定免許が1991年に導入された時代。バブル崩壊後でも自動車保有率は上昇し続け、AT車の普及で女性ドライバーが急増した時期です。");
+    else if (primaryYear <= 2006) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2000年代前半**の取得です。2007年の中型免許新設直前の世代。この時期に普通免許を取得した方は、後に**8トン限定中型**として自動移行されています。");
+    else if (primaryYear <= 2016) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2007〜2016年**の取得です。中型免許（2007年新設）が既に存在する時代。この時期の普通免許は車両総重量5トン未満・最大積載量3トン未満に制限されており、2017年の準中型新設後は**5トン限定準中型**として移行されています。");
+    else if (primaryYear <= 2018) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2017年以降**の取得です。準中型免許（2017年3月新設）が存在する現行制度下での取得。普通免許で運転できる車両は車両総重量3.5トン未満に限定されています。");
     else                   results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**2017年以降**の取得です。準中型免許（2017年3月新設）が存在する現行制度下での取得。普通免許で運転できる車両は車両総重量3.5トン未満に限定されています。");
   }
 
   const la = [];
 
   if (licenses.includes("準中型")) {
-    if (year && year < 2017)
+    if (carYear && carYear < 2017)
       la.push("### 準中型免許（5トン限定）へ自動移行\n\n**準中型（5トン限定）**：2007〜2016年取得の普通免許が2017年の制度改正で自動移行されたものです。車両総重量5トン未満・最大積載量3トン未満まで運転可能。");
     else
       la.push("### 準中型免許を取得\n\n**準中型免許**：現行制度で正規取得。18歳から取得でき、宅配業界で重宝される免許です。");
   }
 
   if (licenses.includes("中型")) {
-    if (year && year < 2007)
+    if (carYear && carYear < 2007)
       la.push("### 中型免許（8トン限定）へ自動移行\n\n**中型免許（8トン限定）**：2007年以前に取得した普通免許が2007年の制度改正で自動移行されたものです。車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。");
-    else if (year && year <= 2016 && licenses.includes("大型"))
+    else if (carYear && carYear <= 2016 && licenses.includes("大型"))
       la.push("### 中型免許を取得（限定解除または正規取得）\n\n**中型免許**：自動移行された準中型（5t限定）から限定解除審査を経て、または正規に中型免許を取得しています。車両総重量11トン未満まで運転可能。大型取得への必須ステップです。");
     else
       la.push("### 中型免許を取得\n\n**中型免許**：試験場または教習所で中型免許を正規取得しています。車両総重量11トン未満まで運転可能。");
-  } else if (licenses.includes("大型") && year && year <= 2016) {
+  } else if (licenses.includes("大型") && carYear && carYear <= 2016) {
     la.push("### 中型免許を取得（経由）\n\n**中型免許**：大型免許取得の前提として中型免許（または限定解除）を経ています。車両総重量11トン未満まで運転可能。");
   }
 
@@ -867,7 +856,7 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
     la.push("### 大型免許を取得\n\n**大型免許**：トレーラーや大型トラックの運転が可能。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
   const bikeOrder = ["原付", "普通二輪", "大型二輪"];
   const selectedBikeLicenses = bikeOrder.filter(t => licenses.includes(t));
-  const bikeYear = parseInt(licenseYears["大型二輪"]) || parseInt(licenseYears["普通二輪"]) || (nikogen && nikogen.y) || year;
+  const bikeYear = parseInt(licenseYears["大型二輪"]) || parseInt(licenseYears["普通二輪"]) || (nikogen && nikogen.y) || null;
   const isPreReform = bikeYear && bikeYear < 1996;
   function historicalBikeLabel(t) {
     if (!isPreReform) return t;
@@ -881,7 +870,7 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
   if (licenses.includes("原付") && selectedBikeLicenses.length === 1)
     la.push("### 原付免許を取得\n\n**原付免許**：16歳から取得可能な50cc以下の原動機付自転車の免許です。多くの方にとって最初に取得する免許となるケースが多い区分です。");
   if (licenses.includes("大型二輪"))
-    la.push(year && year < 1996 ? "### 大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：当時の名称では「自動二輪車(限定なし)」にあたります。1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。\n\nまた当時は、原付 → 自動二輪車(小型限定・125cc) → 自動二輪車(中型限定・400cc) → 限定なし、と段階を踏んで限定解除を重ねるのが一般的で、いきなり大型（限定なし）を取得する例はまれでした。" : "### 大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
+    la.push(isPreReform ? "### 大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：当時の名称では「自動二輪車(限定なし)」にあたります。1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。\n\nまた当時は、原付 → 自動二輪車(小型限定・125cc) → 自動二輪車(中型限定・400cc) → 限定なし、と段階を踏んで限定解除を重ねるのが一般的で、いきなり大型（限定なし）を取得する例はまれでした。" : "### 大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
   if (licenses.includes("普通二輪"))
     la.push(isPreReform
       ? "### 自動二輪車(中型限定)を取得\n\n**自動二輪車(中型限定)**：当時の名称で、現在の「普通二輪免許」にあたります。400ccまでのバイクが運転可能でした。"
@@ -893,12 +882,12 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
   if (la.length > 0) results.push("## 📋 免許種別の読み解き\n\n" + la.join("\n\n"));
 
   if (birth && licenses.length > 0) {
-    const ageNotes = checkAgeConsistency(birth, year, licenses, licenseYears, nikogen, other, nishu);
+    const ageNotes = checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nishu);
     if (ageNotes.length > 0) results.push("## ⚠️ 年齢との整合性\n\n" + ageNotes.join("\n\n"));
   }
 
   if (nikogen || other || nishu) {
-    const cardNotes = checkCardDateConsistency(birth, nikogen, other, nishu, licenses, year);
+    const cardNotes = checkCardDateConsistency(birth, nikogen, other, nishu, licenses, licenseYears);
     if (cardNotes.length > 0) results.push("## ⚠️ 券面記載日との整合性\n\n" + cardNotes.join("\n\n"));
 
     const trackText = [];
@@ -956,8 +945,8 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
   if (currentAge !== null) {
     story += `現在${currentAge}歳と推定される方で、`;
   }
-  if (year && licenses.length > 0) {
-    story += `${year}年頃に免許取得を開始し、`;
+  if (primaryYear && licenses.length > 0) {
+    story += `${primaryYear}年頃に免許取得を開始し、`;
     story += licenses.length === 1 ? `${licenses[0]}免許のみを保持するシンプルな免許歴です。` : `その後${licenses.join('・')}と複数の免許を積み重ねてきた、経験豊富なドライバーです。`;
     if (licenses.includes("大型") || licenses.includes("大型二輪") || licenses.includes("牽引"))
       story += "\n\n職業上の必要性か、強い向上心から上位免許を取得してきた印象があります。";
