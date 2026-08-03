@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>免許証 経歴解読</title>
+<title>免許取得経歴の推定</title>
 <style>
   :root {
     --bg: #f4efe0;
@@ -57,6 +57,7 @@
     font-weight: 600;
   }
   .field-hint { font-size: 12px; color: var(--muted); margin-bottom: 8px; line-height: 1.7; }
+  .wareki-hint { font-size: 12px; color: var(--accent-dark); min-height: 1.4em; }
   .group-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; letter-spacing: 0.05em; }
   .toggles { display: flex; flex-wrap: wrap; gap: 8px; }
   .toggle-btn {
@@ -103,6 +104,17 @@
     font-family: inherit;
     border-radius: 4px;
     resize: vertical;
+    line-height: 1.7;
+  }
+  input[type="date"] {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--ink);
+    padding: 10px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    border-radius: 4px;
     line-height: 1.7;
   }
   .selected-display {
@@ -228,14 +240,33 @@
 <div class="container">
   <div class="header">
     <div class="header-sub">JAPANESE DRIVER'S LICENSE ANALYST</div>
-    <h1>免許証 経歴解読</h1>
-    <p>券面の情報を入力すると、あなたの免許取得の歴史と<br>時代背景を読み解きます</p>
+    <h1>免許取得経歴の推定</h1>
+    <p>券面の情報を入力すると、<br>免許取得の歴史と時代背景を読み解きます</p>
     <div class="header-divider"></div>
   </div>
   <div class="card">
     <div class="field">
+      <label class="field-label">生年月日（任意）</label>
+      <div class="field-hint">入力すると、取得年齢の整合性チェックや高齢者講習等の年齢依存項目も解読します。</div>
+      <input type="date" id="birthDate" oninput="updateWarekiHint('birthDate','birthDateWareki')">
+      <div class="wareki-hint" id="birthDateWareki"></div>
+    </div>
+    <div class="field">
       <label class="field-label">最初の免許取得年</label>
       <div class="drum" id="firstYearDrum"></div>
+    </div>
+    <div class="field">
+      <label class="field-label">券面記載の取得年月日（任意・詳細分析用）</label>
+      <div class="field-hint">免許証表面の「二・小・原」「他」「二種」の各初回取得年月日をそのまま入力すると、経験年数に基づくより精密な分析ができます。</div>
+      <div class="group-label">二・小・原（二輪・小型特殊・原付）</div>
+      <input type="date" id="dateNikogen" style="margin-bottom:4px" oninput="updateWarekiHint('dateNikogen','dateNikogenWareki')">
+      <div class="wareki-hint" id="dateNikogenWareki" style="margin-bottom:10px"></div>
+      <div class="group-label">他（普通・準中型・中型・大型・大型特殊・牽引）</div>
+      <input type="date" id="dateOther" style="margin-bottom:4px" oninput="updateWarekiHint('dateOther','dateOtherWareki')">
+      <div class="wareki-hint" id="dateOtherWareki" style="margin-bottom:10px"></div>
+      <div class="group-label">二種</div>
+      <input type="date" id="dateNishu" style="margin-bottom:4px" oninput="updateWarekiHint('dateNishu','dateNishuWareki')">
+      <div class="wareki-hint" id="dateNishuWareki"></div>
     </div>
     <div class="field">
       <label class="field-label">免許証の色</label>
@@ -270,7 +301,7 @@
       <button class="expand-btn" onclick="toggleYearInputs()">▸ 各免許の取得年を個別入力（任意）</button>
       <div id="yearGrid" class="year-grid" style="display:none"></div>
     </div>
-    <button class="analyze-btn" id="analyzeBtn" onclick="handleAnalyze()">免許証を解読する</button>
+    <button class="analyze-btn" id="analyzeBtn" onclick="handleAnalyze()">推定開始</button>
   </div>
   <div class="result-card" id="resultCard">
     <div class="result-header">◆ 解読結果</div>
@@ -369,6 +400,115 @@ const SPECIAL_COND_MAP = [
   { patterns: ["手動装置"],
     analysis: "### 手動装置の条件あり\n\n**「手動装置」**：手動による加速・ブレーキ操作装置付き車両に限定される条件です。\n\n下肢障害のある方が取得するケースが多く、専用改造車両での運転が認められます。" },
 ];
+
+const MIN_AGE = {
+  "原付": 16, "小型特殊": 16, "普通二輪": 16,
+  "大型二輪": 18, "普通": 18, "準中型": 18, "大型特殊": 18, "牽引": 18,
+  "中型": 20, "大型": 21, "大型二種": 21, "中型二種": 21, "普通二種": 21
+};
+// 2022年5月13日改正：19歳・実務経験1年（二種は3年）で中型・大型・二種が取得可能に
+const TOKUREI_MIN_AGE = { "中型": 19, "大型": 19, "大型二種": 19, "中型二種": 19, "普通二種": 19 };
+const TOKUREI_START_YEAR = 2022;
+
+function warekiDateLabel(y, m, d) {
+  return toWareki(y) + m + '月' + d + '日';
+}
+
+function updateWarekiHint(inputId, hintId) {
+  const value = document.getElementById(inputId).value;
+  const hint = document.getElementById(hintId);
+  const parsed = parseBirthDate(value);
+  hint.textContent = parsed ? '（' + warekiDateLabel(parsed.y, parsed.m, parsed.d) + '）' : '';
+}
+
+function parseBirthDate(value) {
+  if (!value) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return { y, m, d };
+}
+
+function calcCurrentAge(birth) {
+  const today = new Date();
+  let age = today.getFullYear() - birth.y;
+  const beforeBirthday = (today.getMonth() + 1 < birth.m) || (today.getMonth() + 1 === birth.m && today.getDate() < birth.d);
+  if (beforeBirthday) age--;
+  return age;
+}
+
+// 免許経験の起算に必要な保有年数（第一種の通算保有年数基準）
+const EXPERIENCE_YEARS_REQUIRED = { "大型": 3, "大型二種": 3, "中型二種": 3, "普通二種": 3 };
+const EXPERIENCE_YEARS_TOKUREI = { "大型": 1 }; // 19歳特例（大型・中型）は1年、二種特例は3年のまま
+const CAR_TRACK_TYPES = ["普通","準中型","中型","大型","大型特殊","牽引"];
+const BIKE_TRACK_TYPES = ["大型二輪","普通二輪","原付","小型特殊"];
+const NISHU_TYPES = ["大型二種","中型二種","普通二種"];
+
+function dateDiffYears(fromDate, toDate) {
+  if (!fromDate || !toDate) return null;
+  let years = toDate.y - fromDate.y;
+  const beforeAnniversary = (toDate.m < fromDate.m) || (toDate.m === fromDate.m && toDate.d < fromDate.d);
+  if (beforeAnniversary) years--;
+  return years;
+}
+
+function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, licenses, year) {
+  const notes = [];
+
+  if (birth && dateNikogen) {
+    const age = dateDiffYears(birth, dateNikogen);
+    if (age < 16) notes.push(`**二・小・原の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（原付・小型特殊・普通二輪：16歳）を下回っています。`);
+  }
+  if (birth && dateOther) {
+    const age = dateDiffYears(birth, dateOther);
+    if (age < 18) notes.push(`**他（四輪等）の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（普通・準中型等：18歳）を下回っています。`);
+  }
+  if (birth && dateNishu) {
+    const age = dateDiffYears(birth, dateNishu);
+    const tokureiApplicable = dateNishu.y >= TOKUREI_START_YEAR;
+    const effectiveMin = tokureiApplicable ? 19 : 21;
+    if (age < effectiveMin) notes.push(`**二種の初回取得日**：取得時点で${age}歳前後と推定され、取得可能年齢（21歳、2022年5月以降は19歳特例あり）を下回っています。`);
+  }
+
+  if (dateOther && licenses.includes("大型")) {
+    const acqYear = parseInt(year) || null;
+    if (acqYear) {
+      const exp = acqYear - dateOther.y;
+      const tokureiApplicable = acqYear >= TOKUREI_START_YEAR;
+      const required = tokureiApplicable ? EXPERIENCE_YEARS_TOKUREI["大型"] : EXPERIENCE_YEARS_REQUIRED["大型"];
+      if (exp < required) notes.push(`**大型免許**：「他」初回取得（${dateOther.y}年）から大型取得（${acqYear}年）まで約${exp}年しかなく、必要な保有経験年数（${required}年${tokureiApplicable ? '・19歳特例' : ''}）に届いていない可能性があります。`);
+    }
+  }
+
+  if (dateNishu && dateOther) {
+    const exp = dateDiffYears(dateOther, dateNishu);
+    if (exp < EXPERIENCE_YEARS_REQUIRED["普通二種"]) {
+      notes.push(`**二種免許**：「他」初回取得から二種取得まで約${exp}年しかなく、必要な保有経験年数（3年）に届いていない可能性があります。`);
+    }
+  }
+
+  return notes;
+}
+
+function checkAgeConsistency(birth, firstYear, licenses, licenseYears, nikogen, other, nishu) {
+  const notes = [];
+  licenses.forEach(lic => {
+    const minAge = MIN_AGE[lic];
+    if (minAge == null) return;
+    const trackFallback = NISHU_TYPES.includes(lic) ? (nishu && nishu.y)
+      : BIKE_TRACK_TYPES.includes(lic) ? (nikogen && nikogen.y)
+      : CAR_TRACK_TYPES.includes(lic) ? (other && other.y)
+      : null;
+    const acqYear = parseInt(licenseYears[lic]) || trackFallback || firstYear;
+    if (!acqYear) return;
+    const approxAge = acqYear - birth.y;
+    const tokureiApplicable = acqYear >= TOKUREI_START_YEAR && TOKUREI_MIN_AGE[lic] != null;
+    const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : minAge;
+    if (approxAge < effectiveMin) {
+      notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${minAge}歳${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
+    }
+  });
+  return notes;
+}
 
 let selectedLicenses = [];
 let selectedConditions = [];
@@ -610,16 +750,30 @@ function handleAnalyze() {
   btn.innerHTML = '<span class="spinner"></span>解読中...';
 
   const freeConditions = document.getElementById('freeConditions').value;
-  const result = analyze({ firstYear, licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions });
+  const birthDate = document.getElementById('birthDate').value;
+  const dateNikogen = document.getElementById('dateNikogen').value;
+  const dateOther = document.getElementById('dateOther').value;
+  const dateNishu = document.getElementById('dateNishu').value;
+  const result = analyze({ firstYear, licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu });
 
   renderResult(result);
   btn.disabled = false;
-  btn.textContent = '免許証を解読する';
+  btn.textContent = '推定開始';
 }
 
-function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, freeConditions }) {
+function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu }) {
   const freeConds = (freeConditions || '').split(/[\n、,，]/).map(s => s.trim()).filter(Boolean);
-  const year = parseInt(firstYear) || null;
+  const birth = parseBirthDate(birthDate);
+  const currentAge = birth ? calcCurrentAge(birth) : null;
+  const nikogen = parseBirthDate(dateNikogen);
+  const other = parseBirthDate(dateOther);
+  const nishu = parseBirthDate(dateNishu);
+
+  let year = parseInt(firstYear) || null;
+  if (!year && (nikogen || other)) {
+    year = Math.min(...[nikogen, other].filter(Boolean).map(d => d.y));
+  }
+
   const results = [];
 
   function eraLabel(y) {
@@ -711,15 +865,55 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
 
   if (licenses.includes("大型"))
     la.push("### 大型免許を取得\n\n**大型免許**：トレーラーや大型トラックの運転が可能。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
+  const bikeOrder = ["原付", "普通二輪", "大型二輪"];
+  const selectedBikeLicenses = bikeOrder.filter(t => licenses.includes(t));
+  const bikeYear = parseInt(licenseYears["大型二輪"]) || parseInt(licenseYears["普通二輪"]) || (nikogen && nikogen.y) || year;
+  const isPreReform = bikeYear && bikeYear < 1996;
+  function historicalBikeLabel(t) {
+    if (!isPreReform) return t;
+    if (t === "普通二輪") return "自動二輪車(中型限定)";
+    if (t === "大型二輪") return "自動二輪車(限定なし)";
+    return t;
+  }
+  if (selectedBikeLicenses.length > 1) {
+    la.push("### " + selectedBikeLicenses.map(historicalBikeLabel).join(" → ") + "\n\n二輪免許をステップアップしてきた経歴です。" + (nikogen ? `「二・小・原」欄の初回取得日（${nikogen.y}年）が、このうち最初の取得を示しています。` : "原付・小型のバイクから始め、徐々に上位の免許へ進んでいます。") + (isPreReform ? "\n\n1996年9月の改正前は、免許の名称自体が現在と異なりました。原付 → 自動二輪車(小型限定・125cc) → 自動二輪車(中型限定・400cc) → 自動二輪車(限定なし)、と段階的に限定を解除していくのが一般的な経歴です。" : ""));
+  }
+  if (licenses.includes("原付") && selectedBikeLicenses.length === 1)
+    la.push("### 原付免許を取得\n\n**原付免許**：16歳から取得可能な50cc以下の原動機付自転車の免許です。多くの方にとって最初に取得する免許となるケースが多い区分です。");
   if (licenses.includes("大型二輪"))
-    la.push(year && year < 1996 ? "### 大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。" : "### 大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
+    la.push(year && year < 1996 ? "### 大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：当時の名称では「自動二輪車(限定なし)」にあたります。1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。\n\nまた当時は、原付 → 自動二輪車(小型限定・125cc) → 自動二輪車(中型限定・400cc) → 限定なし、と段階を踏んで限定解除を重ねるのが一般的で、いきなり大型（限定なし）を取得する例はまれでした。" : "### 大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
   if (licenses.includes("普通二輪"))
-    la.push("### 普通二輪免許を取得\n\n**普通二輪免許**：400cc以下のバイクが運転可能。" + (conditions.includes("普通車はAT車に限る") ? "AT限定付きのため、クラッチ操作不要のスクーター系に限定されます。" : "MT・ATどちらも運転可能です。"));
+    la.push(isPreReform
+      ? "### 自動二輪車(中型限定)を取得\n\n**自動二輪車(中型限定)**：当時の名称で、現在の「普通二輪免許」にあたります。400ccまでのバイクが運転可能でした。"
+      : "### 普通二輪免許を取得\n\n**普通二輪免許**：400cc以下のバイクが運転可能。" + (conditions.includes("普通車はAT車に限る") ? "AT限定付きのため、クラッチ操作不要のスクーター系に限定されます。" : "MT・ATどちらも運転可能です。"));
   if (licenses.includes("大型二種"))
     la.push("### 大型二種免許を取得\n\n**大型二種免許**：路線バスや観光バスの運転が可能。プロのバス運転士か、二種免許コレクターの方でしょう。");
   if (licenses.includes("牽引"))
     la.push("### 牽引免許を取得\n\n**牽引免許**：トレーラーや重機運搬車の牽引が可能。物流・建設業界のプロか、キャンピングトレーラー愛好家の可能性があります。");
   if (la.length > 0) results.push("## 📋 免許種別の読み解き\n\n" + la.join("\n\n"));
+
+  if (birth && licenses.length > 0) {
+    const ageNotes = checkAgeConsistency(birth, year, licenses, licenseYears, nikogen, other, nishu);
+    if (ageNotes.length > 0) results.push("## ⚠️ 年齢との整合性\n\n" + ageNotes.join("\n\n"));
+  }
+
+  if (nikogen || other || nishu) {
+    const cardNotes = checkCardDateConsistency(birth, nikogen, other, nishu, licenses, year);
+    if (cardNotes.length > 0) results.push("## ⚠️ 券面記載日との整合性\n\n" + cardNotes.join("\n\n"));
+
+    const trackText = [];
+    if (nikogen && other) {
+      const gap = Math.abs(other.y - nikogen.y);
+      if (nikogen.y < other.y) trackText.push(`「二・小・原」（${nikogen.y}年）を先に取得し、${gap}年後に「他」（${other.y}年）を取得しています。バイク・原付から入り、後に四輪免許へ進んだ経歴です。`);
+      else if (other.y < nikogen.y) trackText.push(`「他」（${other.y}年）を先に取得し、${gap}年後に「二・小・原」（${nikogen.y}年）を取得しています。四輪免許を先に取得し、後からバイク・原付系へ進んだ経歴です。`);
+      else trackText.push(`「二・小・原」と「他」がともに${other.y}年で、四輪・二輪系をほぼ同時期に取得しています。`);
+    }
+    if (nishu && other) {
+      const exp = dateDiffYears(other, nishu);
+      trackText.push(`二種免許は「他」取得から約${exp}年後の${nishu.y}年に取得しており、プロドライバー歴は${nishu.y && currentAge !== null ? (new Date().getFullYear() - nishu.y) : '?'}年目相当です。`);
+    }
+    if (trackText.length > 0) results.push("## 🛣️ 取得トラックの読み解き\n\n" + trackText.join("\n\n"));
+  }
 
   const allConds = [...conditions, ...freeConds];
   const seen = new Set();
@@ -741,10 +935,27 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
       "ブルー":   "違反または事故の記録がある、または免許取得から3〜5年経過中です。安全運転を心がけましょう。",
       "ゴールド": "直近5年間無事故・無違反のゴールド免許保持者です！優良ドライバーの証。保険料割引などの特典があります。"
     };
-    results.push("## 🎨 免許証の色\n\n### " + licenseColor + "免許証\n\n" + colorMap[licenseColor]);
+    let colorText = colorMap[licenseColor];
+    if (licenseColor === "ゴールド" && currentAge !== null) {
+      colorText += currentAge >= 70
+        ? `\n\nなお、70歳以上のゴールド免許保持者は次回更新時の有効期間が5年ではなく**3年**に短縮されます。`
+        : `\n\n70歳未満のため、次回更新時の有効期間は通常5年です。`;
+    }
+    results.push("## 🎨 免許証の色\n\n### " + licenseColor + "免許証\n\n" + colorText);
+  }
+
+  if (currentAge !== null && currentAge >= 70) {
+    let elderly = `現在の年齢は${currentAge}歳と推定されます。70歳以上は免許更新時に**高齢者講習**の受講が義務付けられています。`;
+    if (currentAge >= 75) {
+      elderly += `\n\nさらに75歳以上は高齢者講習の前に**認知機能検査**を受ける必要があり、一定の違反歴がある場合は**運転技能検査**も課されます。`;
+    }
+    results.push("## 👴 高齢運転者への制度上の注意\n\n" + elderly);
   }
 
   let story = "## 🔍 総合推測ストーリー\n\n";
+  if (currentAge !== null) {
+    story += `現在${currentAge}歳と推定される方で、`;
+  }
   if (year && licenses.length > 0) {
     story += `${year}年頃に免許取得を開始し、`;
     story += licenses.length === 1 ? `${licenses[0]}免許のみを保持するシンプルな免許歴です。` : `その後${licenses.join('・')}と複数の免許を積み重ねてきた、経験豊富なドライバーです。`;
@@ -756,6 +967,16 @@ function analyze({ firstYear, licenseColor, licenses, conditions, licenseYears, 
     story += "情報が少ないため詳細な推測が困難ですが、入力を増やすとより詳しく分析できます。";
   }
   results.push(story);
+
+  const sources = [
+    "- 免許区分・取得年齢の基準：道路交通法および同施行規則",
+    "- 中型免許の新設：2007年6月2日施行の道路交通法改正",
+    "- 準中型免許の新設：2017年3月12日施行の道路交通法改正",
+    "- 自動二輪免許（大型二輪・普通二輪）の再編：1996年9月1日施行の道路交通法改正",
+    "- 19歳・特例教習による中型・大型・二種免許の取得：2022年5月13日施行の道路交通法改正",
+    "- 優良運転者（ゴールド）制度・高齢者講習・認知機能検査：道路交通法上の優良運転者制度および高齢運転者対策の規定",
+  ];
+  results.push("## 📚 出典・参考にした制度情報\n\n" + sources.join("\n") + "\n\n※本ツールの分析はロジックベースの推測です。正式な証明・鑑定ではありません。最新かつ正確な情報は警察庁または各都道府県警察のウェブサイトをご確認ください。");
 
   return results.join("\n\n---\n\n");
 }
