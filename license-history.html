@@ -273,6 +273,12 @@
       </div>
     </div>
     <div class="field">
+      <label class="field-label">今回の交付年月日（任意）</label>
+      <div class="field-hint">免許証表面の「交付」欄の日付を入力すると、免許証の色との整合性（失効・再交付の可能性等）も解読します。</div>
+      <input type="date" id="issueDate" oninput="updateWarekiHint('issueDate','issueDateWareki')">
+      <div class="wareki-hint" id="issueDateWareki"></div>
+    </div>
+    <div class="field">
       <label class="field-label">所持免許種別（券面に記載のもの）</label>
       <div class="toggles" id="licenseToggles"></div>
     </div>
@@ -484,6 +490,31 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
     const exp = dateDiffYears(dateOther, dateNishu);
     if (exp < EXPERIENCE_YEARS_REQUIRED["普通二種"]) {
       notes.push(`**二種免許**：「他」初回取得から二種取得まで約${exp}年しかなく、必要な保有経験年数（3年）に届いていない可能性があります。`);
+    }
+  }
+
+  return notes;
+}
+
+// グリーン免許は初回取得から3年以内、または失効後の再交付時に限られる色。
+// 経験年数を要する免許の保有や、初回取得から長期間経過した交付日と組み合わさると矛盾が生じるため、
+// 途中に失効期間（特定失効等）があった可能性を示すシグナルとして扱う。
+function checkLapsePossibility(licenseColor, issue, nikogen, other, licenses) {
+  const notes = [];
+  if (licenseColor !== "グリーン") return notes;
+
+  const experienceTypes = Object.keys(EXPERIENCE_YEARS_REQUIRED);
+  const heldExperienceType = licenses.find(l => experienceTypes.includes(l));
+  if (heldExperienceType) {
+    notes.push(`**グリーン免許 × ${heldExperienceType}免許**：${heldExperienceType}免許の取得には通常3年以上の運転経験が必要ですが、グリーン免許は初回取得から3年以内、または失効後の再交付時に限られる色です。単純な「初めての運転者」では説明がつかないため、途中で一定期間の失効（特定失効等）があり、その後グリーンとして再交付された可能性が考えられます。`);
+  }
+
+  const firstDates = [nikogen, other].filter(Boolean);
+  if (issue && firstDates.length > 0) {
+    const firstYear = Math.min(...firstDates.map(d => d.y));
+    const gap = issue.y - firstYear;
+    if (gap > 3) {
+      notes.push(`**交付日との整合性**：初回取得（${firstYear}年）から今回の交付（${issue.y}年）まで約${gap}年経過していますが、色はグリーンです。グリーンは通常初回取得後3年以内の色のため、途中に失効期間があり再交付された可能性が考えられます。`);
     }
   }
 
@@ -748,17 +779,19 @@ function handleAnalyze() {
 
   const freeConditions = document.getElementById('freeConditions').value;
   const birthDate = document.getElementById('birthDate').value;
-  const result = analyze({ licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu });
+  const issueDate = document.getElementById('issueDate').value;
+  const result = analyze({ licenseColor: selectedColor, licenses: selectedLicenses, conditions: selectedConditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu, issueDate });
 
   renderResult(result);
   btn.disabled = false;
   btn.textContent = '推定開始';
 }
 
-function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu }) {
+function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditions, birthDate, dateNikogen, dateOther, dateNishu, issueDate }) {
   const freeConds = (freeConditions || '').split(/[\n、,，]/).map(s => s.trim()).filter(Boolean);
   const birth = parseBirthDate(birthDate);
   const currentAge = birth ? calcCurrentAge(birth) : null;
+  const issue = parseBirthDate(issueDate);
   const nikogen = parseBirthDate(dateNikogen);
   const other = parseBirthDate(dateOther);
   const nishu = parseBirthDate(dateNishu);
@@ -956,6 +989,9 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
     }
     results.push("## 🎨 免許証の色\n\n### " + licenseColor + "免許証\n\n" + colorText);
   }
+
+  const lapseNotes = checkLapsePossibility(licenseColor, issue, nikogen, other, licenses);
+  if (lapseNotes.length > 0) results.push("## 🔎 特定失効・再交付の可能性\n\n" + lapseNotes.join("\n\n"));
 
   if (currentAge !== null && currentAge >= 70) {
     let elderly = `現在の年齢は${currentAge}歳と推定されます。70歳以上は免許更新時に**高齢者講習**の受講が義務付けられています。`;
