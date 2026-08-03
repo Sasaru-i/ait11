@@ -834,29 +834,34 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
 
   const la = [];
 
+  function typeYear(t) { return parseInt(licenseYears[t]) || null; }
+  function yearPrefix(t) { const y = typeYear(t); return y ? y + "年に" : ""; }
+
   if (licenses.includes("準中型")) {
-    if (carYear && carYear < 2017)
-      la.push("### 準中型免許（5トン限定）へ自動移行\n\n**準中型（5トン限定）**：2007〜2016年取得の普通免許が2017年の制度改正で自動移行されたものです。車両総重量5トン未満・最大積載量3トン未満まで運転可能。");
+    const y = typeYear("準中型") || carYear;
+    if (y && y < 2017)
+      la.push("### " + yearPrefix("準中型") + "準中型免許（5トン限定）へ自動移行\n\n**準中型（5トン限定）**：2007〜2016年取得の普通免許が2017年の制度改正で自動移行されたものです。車両総重量5トン未満・最大積載量3トン未満まで運転可能。");
     else
-      la.push("### 準中型免許を取得\n\n**準中型免許**：現行制度で正規取得。18歳から取得でき、宅配業界で重宝される免許です。");
+      la.push("### " + yearPrefix("準中型") + "準中型免許を取得\n\n**準中型免許**：現行制度で正規取得。18歳から取得でき、宅配業界で重宝される免許です。");
   }
 
   if (licenses.includes("中型")) {
-    if (carYear && carYear < 2007)
-      la.push("### 中型免許（8トン限定）へ自動移行\n\n**中型免許（8トン限定）**：2007年以前に取得した普通免許が2007年の制度改正で自動移行されたものです。車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。");
-    else if (carYear && carYear <= 2016 && licenses.includes("大型"))
-      la.push("### 中型免許を取得（限定解除または正規取得）\n\n**中型免許**：自動移行された準中型（5t限定）から限定解除審査を経て、または正規に中型免許を取得しています。車両総重量11トン未満まで運転可能。大型取得への必須ステップです。");
+    const y = typeYear("中型") || carYear;
+    if (y && y < 2007)
+      la.push("### " + yearPrefix("中型") + "中型免許（8トン限定）へ自動移行\n\n**中型免許（8トン限定）**：2007年以前に取得した普通免許が2007年の制度改正で自動移行されたものです。車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。");
+    else if (y && y <= 2016 && licenses.includes("大型"))
+      la.push("### " + yearPrefix("中型") + "中型免許を取得（限定解除または正規取得）\n\n**中型免許**：自動移行された準中型（5t限定）から限定解除審査を経て、または正規に中型免許を取得しています。車両総重量11トン未満まで運転可能。大型取得への必須ステップです。");
     else
-      la.push("### 中型免許を取得\n\n**中型免許**：試験場または教習所で中型免許を正規取得しています。車両総重量11トン未満まで運転可能。");
+      la.push("### " + yearPrefix("中型") + "中型免許を取得\n\n**中型免許**：試験場または教習所で中型免許を正規取得しています。車両総重量11トン未満まで運転可能。");
   } else if (licenses.includes("大型") && carYear && carYear <= 2016) {
     la.push("### 中型免許を取得（経由）\n\n**中型免許**：大型免許取得の前提として中型免許（または限定解除）を経ています。車両総重量11トン未満まで運転可能。");
   }
 
   if (licenses.includes("大型"))
-    la.push("### 大型免許を取得\n\n**大型免許**：トレーラーや大型トラックの運転が可能。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
+    la.push("### " + yearPrefix("大型") + "大型免許を取得\n\n**大型免許**：トレーラーや大型トラックの運転が可能。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
   const bikeOrder = ["原付", "普通二輪", "大型二輪"];
   const selectedBikeLicenses = bikeOrder.filter(t => licenses.includes(t));
-  const bikeYear = parseInt(licenseYears["大型二輪"]) || parseInt(licenseYears["普通二輪"]) || (nikogen && nikogen.y) || null;
+  const bikeYear = typeYear("大型二輪") || typeYear("普通二輪") || (nikogen && nikogen.y) || null;
   const isPreReform = bikeYear && bikeYear < 1996;
   function historicalBikeLabel(t) {
     if (!isPreReform) return t;
@@ -869,12 +874,18 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
   }
   if (licenses.includes("原付") && selectedBikeLicenses.length === 1)
     la.push("### 原付免許を取得\n\n**原付免許**：16歳から取得可能な50cc以下の原動機付自転車の免許です。多くの方にとって最初に取得する免許となるケースが多い区分です。");
-  if (licenses.includes("大型二輪"))
-    la.push(isPreReform ? "### 大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：当時の名称では「自動二輪車(限定なし)」にあたります。1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。\n\nまた当時は、原付 → 自動二輪車(小型限定・125cc) → 自動二輪車(中型限定・400cc) → 限定なし、と段階を踏んで限定解除を重ねるのが一般的で、いきなり大型（限定なし）を取得する例はまれでした。" : "### 大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
-  if (licenses.includes("普通二輪"))
-    la.push(isPreReform
-      ? "### 自動二輪車(中型限定)を取得\n\n**自動二輪車(中型限定)**：当時の名称で、現在の「普通二輪免許」にあたります。400ccまでのバイクが運転可能でした。"
-      : "### 普通二輪免許を取得\n\n**普通二輪免許**：400cc以下のバイクが運転可能。" + (conditions.includes("普通車はAT車に限る") ? "AT限定付きのため、クラッチ操作不要のスクーター系に限定されます。" : "MT・ATどちらも運転可能です。"));
+  if (licenses.includes("大型二輪")) {
+    const y = typeYear("大型二輪");
+    const pre96 = y ? y < 1996 : isPreReform;
+    la.push(pre96 ? "### " + yearPrefix("大型二輪") + "大型二輪免許（限定解除）を取得\n\n**大型二輪（限定解除）**：当時の名称では「自動二輪車(限定なし)」にあたります。1996年以前は「限定解除審査」という難関試験に合格した猛者のみが取得できました。一発試験で合格率は数％という時代の取得者です。\n\nまた当時は、原付 → 自動二輪車(小型限定・125cc) → 自動二輪車(中型限定・400cc) → 限定なし、と段階を踏んで限定解除を重ねるのが一般的で、いきなり大型（限定なし）を取得する例はまれでした。" : "### " + yearPrefix("大型二輪") + "大型二輪免許を取得\n\n**大型二輪免許**：1996年の制度改正後に教習所での取得が可能になりました。排気量無制限のバイクを運転できます。");
+  }
+  if (licenses.includes("普通二輪")) {
+    const y = typeYear("普通二輪");
+    const pre96 = y ? y < 1996 : isPreReform;
+    la.push(pre96
+      ? "### " + yearPrefix("普通二輪") + "自動二輪車(中型限定)を取得\n\n**自動二輪車(中型限定)**：当時の名称で、現在の「普通二輪免許」にあたります。400ccまでのバイクが運転可能でした。"
+      : "### " + yearPrefix("普通二輪") + "普通二輪免許を取得\n\n**普通二輪免許**：400cc以下のバイクが運転可能。" + (conditions.includes("普通車はAT車に限る") ? "AT限定付きのため、クラッチ操作不要のスクーター系に限定されます。" : "MT・ATどちらも運転可能です。"));
+  }
   if (licenses.includes("大型二種"))
     la.push("### 大型二種免許を取得\n\n**大型二種免許**：路線バスや観光バスの運転が可能。プロのバス運転士か、二種免許コレクターの方でしょう。");
   if (licenses.includes("牽引"))
