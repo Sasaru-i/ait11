@@ -496,6 +496,30 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
   return notes;
 }
 
+function hasConditionMatch(allConds, patterns) {
+  return allConds.some(cond => patterns.some(p => cond.includes(p) || p.includes(cond)));
+}
+
+// 「中型車は中型車(8t)に限る」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件。
+// 中型免許が選択されていない、または取得年が2007年以降と推定される場合は矛盾として扱う。
+function checkChugataHachitonConsistency(licenses, licenseYears, carYear, allConds) {
+  const notes = [];
+  const patterns = ["中型車は中型車(8t)に限る", "8トン限定", "8t限定"];
+  if (!hasConditionMatch(allConds, patterns)) return notes;
+
+  if (!licenses.includes("中型")) {
+    notes.push(`**中型車(8t)限定の条件**：この条件は中型免許に対する限定条件ですが、所持免許種別で「中型」が選択されていません。選択漏れの可能性があります。`);
+    return notes;
+  }
+
+  const year = parseInt(licenseYears["中型"]) || carYear;
+  if (year && year >= 2007) {
+    notes.push(`**中型免許 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件ですが、中型免許の取得年は${year}年と推定され、この移行期間（2007年6月1日以前）と矛盾します。取得年または条件欄の入力をご確認ください。`);
+  }
+
+  return notes;
+}
+
 // グリーン免許は初回取得から3年以内、または失効後の再交付時に限られる色。
 // 経験年数を要する免許の保有や、初回取得から長期間経過した交付日と組み合わさると矛盾が生じるため、
 // 途中に失効期間（特定失効等）があった可能性を示すシグナルとして扱う。
@@ -937,6 +961,9 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
   if (licenses.includes("牽引"))
     la.push("### 牽引免許を取得\n\n**牽引免許**：トレーラーや重機運搬車の牽引が可能。物流・建設業界のプロか、キャンピングトレーラー愛好家の可能性があります。");
   if (la.length > 0) results.push("## 📋 免許種別の読み解き\n\n" + la.join("\n\n"));
+
+  const chugataNotes = checkChugataHachitonConsistency(licenses, licenseYears, carYear, [...conditions, ...freeConds]);
+  if (chugataNotes.length > 0) results.push("## ⚠️ 条件と免許種別の整合性\n\n" + chugataNotes.join("\n\n"));
 
   if (birth && licenses.length > 0) {
     const ageNotes = checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nishu);
