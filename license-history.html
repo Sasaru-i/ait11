@@ -503,8 +503,40 @@ function hasConditionMatch(allConds, patterns) {
 // 「中型車は中型車(8t)に限る」「準中型車は準中型車(5t)に限る」は、いずれも普通免許から
 // 車系区分が新設される際の自動移行時のみ付される条件で、基礎となる「他」の取得時期に応じて
 // 排他的に発生する（8t限定＝2007年6月2日より前、5t限定＝2007年6月2日〜2017年3月11日）。
+//
+// これらの限定は、限定発生後に上位免許を新たに取得すると自動的に解除される
+// （8t限定：中型限定解除／大型第一種／大型第二種／中型第二種の取得。5t限定：準中型限定解除／
+// 中型／中型第二種／大型第一種／大型第二種の取得）。ただし限定の発生より前からその上位免許を
+// 保有していた場合（新たな取得ではないため）は解除されない。
+// 参考：岡山県警察「8ｔ限定中型免許をお持ちの方へ」https://www.pref.okayama.jp/page/409117.html
 const HACHITON_PATTERNS = ["中型車は中型車(8t)に限る", "8トン限定", "8t限定"];
 const GOTON_PATTERNS = ["準中型で運転できる準中型車は準中型車(5t)に限る", "5トン限定", "5t限定"];
+const HACHITON_RESOLVE_HIGHER = ["大型", "大型二種", "中型二種"];
+const GOTON_RESOLVE_HIGHER = ["中型", "中型二種", "大型", "大型二種"];
+// 限定そのものが実際に免許記録上に発生した年（＝制度移行日）。「他」の取得年（originYear、
+// 移行対象かどうかの判定に使う値）とは別物で、解除判定はこちらを基準にする必要がある。
+const HACHITON_CONVERSION_YEAR = 2007; // 2007年6月2日
+const GOTON_CONVERSION_YEAR = 2017;    // 2017年3月12日
+
+// 限定が実際に発生した年（conversionYear）より後に、限定を解除しうる免許（selfLicense自身の
+// 再取得、またはより上位の免許）を取得している場合は「解除済みの見込み」を返す。上位免許は
+// 保有しているが取得年が未入力の場合は、判定できない旨のヒントを返す。
+function findLimitationResolution(conversionYear, selfLicense, higherLicenses, licenses, licenseYears) {
+  const selfYear = parseInt(licenseYears[selfLicense]) || null;
+  if (selfYear && selfYear > conversionYear) {
+    return { lic: selfLicense, acqYear: selfYear, resolved: true };
+  }
+  let hint = null;
+  for (const lic of higherLicenses) {
+    if (!licenses.includes(lic)) continue;
+    const acqYear = parseInt(licenseYears[lic]) || null;
+    if (acqYear && acqYear > conversionYear) {
+      return { lic, acqYear, resolved: true };
+    }
+    if (!acqYear && !hint) hint = lic;
+  }
+  return hint ? { lic: hint, acqYear: null, resolved: false } : null;
+}
 
 function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, allConds) {
   const notes = [];
@@ -515,9 +547,16 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
     if (!licenses.includes("中型")) {
       notes.push(`**中型車(8t)限定の条件**：この条件は中型免許に対する限定条件ですが、所持免許種別で「中型」が選択されていません。選択漏れの可能性があります。`);
     } else {
-      const year = parseInt(licenseYears["中型"]) || carYear;
-      if (year && year >= 2007) {
-        notes.push(`**中型免許 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件ですが、中型免許の取得年は${year}年と推定され、この移行期間（2007年6月1日以前）と矛盾します。取得年または条件欄の入力をご確認ください。`);
+      const originYear = carYear || parseInt(licenseYears["中型"]) || null;
+      if (originYear && originYear > 2007) {
+        notes.push(`**中型免許 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件ですが、「他」の取得年は${originYear}年と推定され、この移行期間（2007年6月1日以前）と矛盾します。取得年または条件欄の入力をご確認ください。`);
+      } else if (originYear) {
+        const resolution = findLimitationResolution(HACHITON_CONVERSION_YEAR, "中型", HACHITON_RESOLVE_HIGHER, licenses, licenseYears);
+        if (resolution && resolution.resolved) {
+          notes.push(`**中型車(8t)限定は解除されている見込み**：${resolution.acqYear}年に取得した「${resolution.lic}」免許により、「中型車(8t)限定」は自動的に解除されているはずです。条件欄にまだ記載が残っている場合は、削除をご検討ください。`);
+        } else if (resolution && !resolution.resolved) {
+          notes.push(`**中型車(8t)限定の解除タイミング未確認**：所持免許に「${resolution.lic}」が含まれています。${resolution.lic}を8t限定の後に取得していれば限定は自動的に解除されているはずです。「${resolution.lic} 取得年」を入力すると、より正確な判定ができます。`);
+        }
       }
     }
   }
@@ -526,9 +565,16 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
     if (!licenses.includes("準中型")) {
       notes.push(`**準中型車(5t)限定の条件**：この条件は準中型免許に対する限定条件ですが、所持免許種別で「準中型」が選択されていません。選択漏れの可能性があります。`);
     } else {
-      const year = parseInt(licenseYears["準中型"]) || carYear;
-      if (year && (year < 2007 || year > 2016)) {
-        notes.push(`**準中型免許 × 準中型車(5t)限定**：「準中型車(5t)限定」は2007年6月2日〜2017年3月11日に普通免許を取得した場合のみ付される条件ですが、準中型免許の取得年は${year}年と推定され、この移行期間と矛盾します。取得年または条件欄の入力をご確認ください。`);
+      const originYear = carYear || parseInt(licenseYears["準中型"]) || null;
+      if (originYear && (originYear < 2007 || originYear > 2016)) {
+        notes.push(`**準中型免許 × 準中型車(5t)限定**：「準中型車(5t)限定」は2007年6月2日〜2017年3月11日に普通免許を取得した場合のみ付される条件ですが、「他」の取得年は${originYear}年と推定され、この移行期間と矛盾します。取得年または条件欄の入力をご確認ください。`);
+      } else if (originYear) {
+        const resolution = findLimitationResolution(GOTON_CONVERSION_YEAR, "準中型", GOTON_RESOLVE_HIGHER, licenses, licenseYears);
+        if (resolution && resolution.resolved) {
+          notes.push(`**準中型車(5t)限定は解除されている見込み**：${resolution.acqYear}年に取得した「${resolution.lic}」免許により、「準中型車(5t)限定」は自動的に解除されているはずです。条件欄にまだ記載が残っている場合は、削除をご検討ください。`);
+        } else if (resolution && !resolution.resolved) {
+          notes.push(`**準中型車(5t)限定の解除タイミング未確認**：所持免許に「${resolution.lic}」が含まれています。${resolution.lic}を5t限定の後に取得していれば限定は自動的に解除されているはずです。「${resolution.lic} 取得年」を入力すると、より正確な判定ができます。`);
+        }
       }
     }
   }
