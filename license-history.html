@@ -673,13 +673,17 @@ function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nish
       return;
     }
 
-    const trackFallback = NISHU_TYPES.includes(lic) ? (nishu && nishu.y)
-      : BIKE_TRACK_TYPES.includes(lic) ? (nikogen && nikogen.y)
-      : CAR_TRACK_TYPES.includes(lic) ? (other && other.y)
+    const trackDate = NISHU_TYPES.includes(lic) ? nishu
+      : BIKE_TRACK_TYPES.includes(lic) ? nikogen
+      : CAR_TRACK_TYPES.includes(lic) ? other
       : null;
-    const acqYear = parseInt(licenseYears[lic]) || trackFallback;
+    const individualYear = parseInt(licenseYears[lic]) || null;
+    const acqYear = individualYear || (trackDate && trackDate.y) || null;
     if (!acqYear) return;
-    const approxAge = acqYear - birth.y;
+    // 個別取得年（年のみの入力）しかない場合はその年で概算するしかないが、「二・小・原」
+    // 「他」「二種」のように年月日まで判明している日付を使う場合は、生年月日の月日も
+    // 踏まえて年齢を正確に計算する（誕生日前後で1歳ずれるのを防ぐ）。
+    const approxAge = (!individualYear && trackDate) ? dateDiffYears(birth, trackDate) : (acqYear - birth.y);
     const tokureiApplicable = acqYear >= TOKUREI_START_YEAR && TOKUREI_MIN_AGE[lic] != null;
     // 中型免許は2007年6月2日新設のため、それより前の年は中型を直接試験取得したのではなく、
     // 必ず旧普通免許からの自動移行（8t限定）を意味する。この場合に満たすべき年齢基準は
