@@ -1103,6 +1103,18 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
   function typeYear(t) { return parseInt(licenseYears[t]) || null; }
   function yearPrefix(t) { const y = typeYear(t); return y ? y + "年に" : ""; }
 
+  if (licenses.includes("普通")) {
+    // 軽自動車免許（1952年8月〜1968年8月、16歳から取得可）は1968年9月1日に普通免許へ
+    // 自動移行した。「他」取得時点の年齢が16〜17歳と判明している場合のみ、軽自動車免許
+    // 経由だったと確度高く推定できる（🕰️ 取得の時代背景のpushInitialCarStep()と同じ判定）。
+    const ageAtOther = (birth && other) ? dateDiffYears(birth, other) : null;
+    const viaKeijidosha = other && isDateBefore(other, KEIJIDOSHA_ABOLITION_DATE)
+      && ageAtOther != null && ageAtOther >= KEIJIDOSHA_MIN_AGE && ageAtOther < 18;
+    if (viaKeijidosha) {
+      la.push("### 軽自動車免許を取得（1968年9月1日より前・" + ageAtOther + "歳前後） → 普通免許（軽自動車限定）へ自動移行・付帯\n\n**普通免許（軽自動車免許からの自動移行）**：1952年8月新設の軽自動車免許（16歳から取得可能・360cc以下限定）を保有していたとみられ、1968年9月1日の制度改正で普通自動車免許に統合されました。限定解除審査を受けていなければ、条件欄に「軽自動車に限る」の記載が残っているはずです。");
+    }
+  }
+
   if (licenses.includes("準中型")) {
     const y = typeYear("準中型") || carYear;
     if (y && y < 2017)
