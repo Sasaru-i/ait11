@@ -368,7 +368,7 @@ const SPECIAL_COND_MAP = [
   { patterns: ["軽自動車に限る","軽自動車限定","360cc以下"],
     analysis: "### 軽自動車に限る\n\n**「軽自動車に限る」**：1952年8月に新設された軽自動車免許（16歳から取得可能）が、1968年9月1日の制度改正で普通自動車免許に統合された際、限定解除審査を受けなかった保有者に付された経過措置の条件です。\n\n360cc以下の軽自動車のみ運転可能。1968年8月以前に軽自動車免許を取得した方の証で、現存する免許証では非常に稀な記載です。限定解除審査に合格すれば、限定のない普通免許になります。" },
   { patterns: ["中型車は中型車(8t)に限る","8トン限定","8t限定"],
-    analysis: "### 中型車は中型車(8t)に限る\n\n**「中型車は中型車(8t)に限る」**：2007年6月2日の中型免許新設以前に取得した普通免許が自動移行されたものです。\n\n車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。2トントラックや一部のバンが対象ですが、マイクロバスは乗車定員の関係で運転できません。\n\nこの条件を外すには教習所の限定解除講習（4〜6時間程度）が必要です。" },
+    analysis: "### 中型車は中型車(8t)に限る\n\n**「中型車は中型車(8t)に限る」**：2007年6月2日の中型免許新設以前に取得した普通免許（第一種）または普通二種免許が自動移行されたものです。中型二種の場合も同じ経緯で「中型二種（8t限定）」となります。\n\n車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。2トントラックや一部のバンが対象ですが、マイクロバスは乗車定員の関係で運転できません。\n\nこの条件を外すには教習所の限定解除講習（4〜6時間程度）が必要です。" },
   { patterns: ["準中型で運転できる準中型車は準中型車(5t)に限る","5トン限定","5t限定"],
     analysis: "### 準中型車は準中型車(5t)に限る\n\n**「準中型車は準中型車(5t)に限る」**：2007年6月2日〜2017年3月11日に取得した普通免許が、2017年の準中型新設時に移行されたものです。\n\n車両総重量5トン未満・最大積載量3トン未満まで運転可能。小型トラックや宅配車などが対象です。" },
   { patterns: ["大型車はマイクロバスに限る"],
@@ -459,7 +459,10 @@ function calcCurrentAge(birth) {
 
 // 免許経験の起算に必要な保有年数（第一種の通算保有年数基準）
 const EXPERIENCE_YEARS_REQUIRED = { "大型": 3, "大型二種": 3, "中型二種": 3, "普通二種": 3, "大型特殊二種": 3, "牽引二種": 3 };
-const EXPERIENCE_YEARS_TOKUREI = { "大型": 1 }; // 19歳特例（大型・中型）は1年、二種特例は3年のまま
+// 2022年5月13日改正の受験資格特例教習（経験課程・年齢＋経験課程）により、大型・中型・
+// 第二種免許いずれも運転経験年数の要件は1年に引き下げられる（警察庁「第二種免許等の受験
+// 資格の見直しについて」）。二種のみ従来通り3年のまま、という区別は存在しない。
+const EXPERIENCE_YEARS_TOKUREI = { "大型": 1, "大型二種": 1, "中型二種": 1, "普通二種": 1, "大型特殊二種": 1, "牽引二種": 1 };
 const CAR_TRACK_TYPES = ["普通","準中型","中型","大型","大型特殊","牽引"];
 const BIKE_TRACK_TYPES = ["大型二輪","普通二輪","原付","小型特殊"];
 const NISHU_TYPES = ["大型二種","中型二種","普通二種","大型特殊二種","牽引二種"];
@@ -517,10 +520,13 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
 
   if (dateNishu && dateOther) {
     const exp = dateDiffYears(dateOther, dateNishu);
+    const heldNishu = licenses.find(l => NISHU_TYPES.includes(l));
+    const tokureiApplicable = dateNishu.y >= TOKUREI_START_YEAR && heldNishu != null;
+    const requiredNishu = tokureiApplicable ? EXPERIENCE_YEARS_TOKUREI[heldNishu] : EXPERIENCE_YEARS_REQUIRED["普通二種"];
     if (exp < 0) {
       notes.push(`**二種免許**：二種の初回取得が「他」初回取得（${dateOther.y}年）より前になっており、前後関係が逆転しています。日付の入力をご確認ください。`);
-    } else if (exp < EXPERIENCE_YEARS_REQUIRED["普通二種"]) {
-      notes.push(`**二種免許**：「他」初回取得から二種取得まで約${exp}年しかなく、必要な保有経験年数（3年）に届いていない可能性があります。`);
+    } else if (exp < requiredNishu) {
+      notes.push(`**二種免許**：「他」初回取得から二種取得まで約${exp}年しかなく、必要な保有経験年数（${requiredNishu}年${tokureiApplicable ? '・19歳特例' : ''}）に届いていない可能性があります。`);
     }
   }
 
@@ -549,13 +555,17 @@ const GOTON_RESOLVE_HIGHER = ["中型", "中型二種", "大型", "大型二種"
 const HACHITON_CONVERSION_YEAR = 2007; // 2007年6月2日
 const GOTON_CONVERSION_YEAR = 2017;    // 2017年3月12日
 
-// 限定が実際に発生した年（conversionYear）より後に、限定を解除しうる免許（selfLicense自身の
+// 限定が実際に発生した年（conversionYear）より後に、限定を解除しうる免許（selfLicenses自身の
 // 再取得、またはより上位の免許）を取得している場合は「解除済みの見込み」を返す。上位免許は
-// 保有しているが取得年が未入力の場合は、判定できない旨のヒントを返す。
-function findLimitationResolution(conversionYear, selfLicense, higherLicenses, licenses, licenseYears) {
-  const selfYear = parseInt(licenseYears[selfLicense]) || null;
-  if (selfYear && selfYear > conversionYear) {
-    return { lic: selfLicense, acqYear: selfYear, resolved: true };
+// 保有しているが取得年が未入力の場合は、判定できない旨のヒントを返す。selfLicensesは配列でも
+// 単一の文字列でもよい（例：8t限定は「中型」「中型二種」のどちらでも自己解除しうる）。
+function findLimitationResolution(conversionYear, selfLicenses, higherLicenses, licenses, licenseYears) {
+  const selfList = Array.isArray(selfLicenses) ? selfLicenses : [selfLicenses];
+  for (const selfLicense of selfList) {
+    const selfYear = parseInt(licenseYears[selfLicense]) || null;
+    if (selfYear && selfYear > conversionYear) {
+      return { lic: selfLicense, acqYear: selfYear, resolved: true };
+    }
   }
   let hint = null;
   for (const lic of higherLicenses) {
@@ -569,24 +579,30 @@ function findLimitationResolution(conversionYear, selfLicense, higherLicenses, l
   return hint ? { lic: hint, acqYear: null, resolved: false } : null;
 }
 
-function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, allConds, birth) {
+function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, allConds, birth, nishuYear) {
   const notes = [];
   const hasHachiton = hasConditionMatch(allConds, HACHITON_PATTERNS);
   const hasGoton = hasConditionMatch(allConds, GOTON_PATTERNS);
 
   if (hasHachiton) {
-    if (!licenses.includes("中型")) {
-      notes.push(`**中型車(8t)限定の条件**：この条件は中型免許に対する限定条件ですが、所持免許種別で「中型」が選択されていません。選択漏れの可能性があります。`);
+    // 8t限定は旧普通免許からの自動移行で、中型（1種）だけでなく中型二種にも同じ経緯で
+    // 発生する（2007年6月2日以前の普通二種は自動的に中型二種8t限定へ移行した）。中型二種の
+    // 起点は「他」ではなく、二種免許の初回取得を表す「二種」欄を基準にする。
+    const hachitonHolder = licenses.includes("中型") ? "中型" : licenses.includes("中型二種") ? "中型二種" : null;
+    if (!hachitonHolder) {
+      notes.push(`**中型車(8t)限定の条件**：この条件は中型免許・中型二種免許に対する限定条件ですが、所持免許種別で「中型」「中型二種」のいずれも選択されていません。選択漏れの可能性があります。`);
     } else {
-      const originYear = carYear || parseInt(licenseYears["中型"]) || null;
+      const hachitonBaseYear = hachitonHolder === "中型二種" ? nishuYear : carYear;
+      const originYear = hachitonBaseYear || parseInt(licenseYears[hachitonHolder]) || null;
       if (originYear && originYear > 2007) {
-        notes.push(`**中型免許 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件ですが、「他」の取得年は${originYear}年と推定され、この移行期間（2007年6月1日以前）と矛盾します。取得年または条件欄の入力をご確認ください。`);
+        const originFieldLabel = hachitonHolder === "中型二種" ? "「二種」" : "「他」";
+        notes.push(`**${hachitonHolder}免許 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件ですが、${originFieldLabel}の取得年は${originYear}年と推定され、この移行期間（2007年6月1日以前）と矛盾します。取得年または条件欄の入力をご確認ください。`);
       } else if (originYear) {
         // 条件欄に「中型車(8t)限定」の記載があるという入力は、券面上の実際の記載を表す事実として扱う。
         // そのため、上位免許の取得年が個別入力されていて2007年より後だと分かる場合のみ矛盾とし、
         // 個別入力がない場合は「まだ解除されていないかもしれない」という推測ではなく、逆に
         // 「この上位免許は2007年6月2日より前に取得していたはず」という推定として扱う。
-        const resolution = findLimitationResolution(HACHITON_CONVERSION_YEAR, "中型", HACHITON_RESOLVE_HIGHER, licenses, licenseYears);
+        const resolution = findLimitationResolution(HACHITON_CONVERSION_YEAR, ["中型","中型二種"], HACHITON_RESOLVE_HIGHER, licenses, licenseYears);
         if (resolution && resolution.resolved) {
           notes.push(`**${resolution.lic}免許 × 中型車(8t)限定**：${resolution.acqYear}年に取得した「${resolution.lic}」免許より後にもかかわらず、条件欄に「中型車(8t)限定」の記載が残っています。${resolution.lic}を8t限定の後に取得した場合は限定が自動的に解除されているはずのため、矛盾する可能性があります。取得年または条件欄の入力をご確認ください。`);
         } else if (resolution && !resolution.resolved) {
@@ -1175,8 +1191,15 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
   }
   if (licenses.includes("大型二種"))
     la.push("### " + yearPrefix("大型二種") + "大型二種免許を取得\n\n**大型二種免許**：路線バスや観光バスの運転が可能。プロのバス運転士か、二種免許コレクターの方でしょう。");
-  if (licenses.includes("中型二種"))
-    la.push("### " + yearPrefix("中型二種") + "中型二種免許を取得\n\n**中型二種免許**：マイクロバスなど中型の旅客車の運転が可能。送迎バスの運転士や、二種免許コレクターの方でしょう。");
+  if (licenses.includes("中型二種")) {
+    // 中型（1種）と同じく、2007年6月2日の中型免許新設以前は普通二種免許しかなく、
+    // それ以前の取得は必ず中型二種（8t限定）への自動移行を意味する。
+    const y = typeYear("中型二種") || (nishu && nishu.y);
+    if (y && y < 2007)
+      la.push("### " + yearPrefix("中型二種") + "中型二種免許（8トン限定）へ自動移行\n\n**中型二種免許（8トン限定）**：2007年以前に取得した普通二種免許が2007年の制度改正で自動移行されたものです。車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。マイクロバス（19〜22人乗り）は乗車定員の関係で運転できません。");
+    else
+      la.push("### " + yearPrefix("中型二種") + "中型二種免許を取得\n\n**中型二種免許**：マイクロバスなど中型の旅客車の運転が可能。送迎バスの運転士や、二種免許コレクターの方でしょう。");
+  }
   if (licenses.includes("普通二種"))
     la.push("### " + yearPrefix("普通二種") + "普通二種免許を取得\n\n**普通二種免許**：タクシー・ハイヤーや旅客運送用の普通車の運転が可能。プロのタクシードライバーか、二種免許コレクターの方でしょう。");
   if (licenses.includes("大型特殊二種"))
@@ -1187,7 +1210,7 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
     la.push("### 牽引免許を取得\n\n**牽引免許**：トレーラーや重機運搬車の牽引が可能。物流・建設業界のプロか、キャンピングトレーラー愛好家の可能性があります。");
   if (la.length > 0) results.push("## 📋 免許種別の読み解き\n\n" + la.join("\n\n"));
 
-  const transitionalNotes = checkTransitionalConditionConsistency(licenses, licenseYears, carYear, [...conditions, ...freeConds], birth);
+  const transitionalNotes = checkTransitionalConditionConsistency(licenses, licenseYears, carYear, [...conditions, ...freeConds], birth, nishu ? nishu.y : null);
   if (transitionalNotes.length > 0) results.push("## ⚠️ 条件と免許種別の整合性\n\n" + transitionalNotes.join("\n\n"));
 
   if (birth && licenses.length > 0) {
