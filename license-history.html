@@ -538,7 +538,7 @@ function findLimitationResolution(conversionYear, selfLicense, higherLicenses, l
   return hint ? { lic: hint, acqYear: null, resolved: false } : null;
 }
 
-function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, allConds) {
+function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, allConds, birth) {
   const notes = [];
   const hasHachiton = hasConditionMatch(allConds, HACHITON_PATTERNS);
   const hasGoton = hasConditionMatch(allConds, GOTON_PATTERNS);
@@ -557,6 +557,14 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
         } else if (resolution && !resolution.resolved) {
           notes.push(`**中型車(8t)限定の解除タイミング未確認**：所持免許に「${resolution.lic}」が含まれています。${resolution.lic}を8t限定の後に取得していれば限定は自動的に解除されているはずです。「${resolution.lic} 取得年」を入力すると、より正確な判定ができます。`);
         }
+      } else if (birth) {
+        // 「他」・中型の取得年が未入力でも、8t限定は「2007年6月2日より前に普通免許を取得」した
+        // 人にしか付かない条件のため、生年月日から2007年時点で普通免許取得可能年齢（18歳）に
+        // 達していたかだけは逆算できる。
+        const age2007 = 2007 - birth.y;
+        if (age2007 < 18) {
+          notes.push(`**生年月日 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日より前に普通免許を取得した方にのみ付される条件ですが、生年月日から2007年時点で${age2007}歳前後と推定され、普通免許の取得可能年齢（18歳）に達していません。生年月日または条件欄の入力をご確認ください。`);
+        }
       }
     }
   }
@@ -574,6 +582,13 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
           notes.push(`**準中型車(5t)限定は解除されている見込み**：${resolution.acqYear}年に取得した「${resolution.lic}」免許により、「準中型車(5t)限定」は自動的に解除されているはずです。条件欄にまだ記載が残っている場合は、削除をご検討ください。`);
         } else if (resolution && !resolution.resolved) {
           notes.push(`**準中型車(5t)限定の解除タイミング未確認**：所持免許に「${resolution.lic}」が含まれています。${resolution.lic}を5t限定の後に取得していれば限定は自動的に解除されているはずです。「${resolution.lic} 取得年」を入力すると、より正確な判定ができます。`);
+        }
+      } else if (birth) {
+        // 5t限定は「2007年6月2日〜2017年3月11日に普通免許を取得」した人にしか付かないため、
+        // 移行期間の終期（2016年時点）で18歳に達していたかだけは生年月日から逆算できる。
+        const age2016 = 2016 - birth.y;
+        if (age2016 < 18) {
+          notes.push(`**生年月日 × 準中型車(5t)限定**：「準中型車(5t)限定」は2007年6月2日〜2017年3月11日に普通免許を取得した方にのみ付される条件ですが、生年月日から2016年時点でも${age2016}歳前後と推定され、普通免許の取得可能年齢（18歳）に達していません。生年月日または条件欄の入力をご確認ください。`);
         }
       }
     }
@@ -1037,7 +1052,7 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
     la.push("### 牽引免許を取得\n\n**牽引免許**：トレーラーや重機運搬車の牽引が可能。物流・建設業界のプロか、キャンピングトレーラー愛好家の可能性があります。");
   if (la.length > 0) results.push("## 📋 免許種別の読み解き\n\n" + la.join("\n\n"));
 
-  const transitionalNotes = checkTransitionalConditionConsistency(licenses, licenseYears, carYear, [...conditions, ...freeConds]);
+  const transitionalNotes = checkTransitionalConditionConsistency(licenses, licenseYears, carYear, [...conditions, ...freeConds], birth);
   if (transitionalNotes.length > 0) results.push("## ⚠️ 条件と免許種別の整合性\n\n" + transitionalNotes.join("\n\n"));
 
   if (birth && licenses.length > 0) {
