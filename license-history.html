@@ -913,6 +913,11 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
   // 時代背景・総合ストーリーは「他」を優先し、無ければ「二・小・原」を基準にする
   const primaryYear = other ? other.y : (nikogen ? nikogen.y : null);
 
+  // 条件欄への8t/5t限定の記載は券面上の事実として扱う。取得の流れ（buildLicenseFlow）でも
+  // 同じ考え方を使い、記載が残っている場合は「限定発生前から上位免許を保有していた」順序で組み立てる。
+  const hasHachitonCond = hasConditionMatch([...conditions, ...freeConds], HACHITON_PATTERNS);
+  const hasGotonCond = hasConditionMatch([...conditions, ...freeConds], GOTON_PATTERNS);
+
   const results = [];
 
   function eraLabel(y) {
@@ -930,24 +935,43 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
     const steps = [];
 
     if (y <= 2006) {
-      steps.push("普通免許を取得");
-      if (lics.includes("中型") || lics.includes("大型")) {
-        steps.push("中型免許（8t限定）へ自動移行");
-      }
-      if (lics.includes("大型")) {
-        if (lics.includes("中型")) steps.push("中型免許（限定解除）を取得");
-        steps.push("大型免許を取得");
+      // 条件欄に8t限定の記載が残っている＝2007年の自動移行時点で既に大型免許を保有していた
+      // （後から大型免許を取得していれば8t限定は自動的に解除されているはずのため）と推定できる。
+      const keepsHachiton = hasHachitonCond && lics.includes("中型") && lics.includes("大型");
+      if (keepsHachiton) {
+        steps.push("普通免許を取得");
+        steps.push("大型免許を取得（2007年6月2日より前）");
+        steps.push("中型免許（8t限定）へ自動移行・付帯（大型免許保有のため解除されず残存）");
+      } else {
+        steps.push("普通免許を取得");
+        if (lics.includes("中型") || lics.includes("大型")) {
+          steps.push("中型免許（8t限定）へ自動移行");
+        }
+        if (lics.includes("大型")) {
+          if (lics.includes("中型")) steps.push("中型免許（限定解除）を取得");
+          steps.push("大型免許を取得");
+        }
       }
     } else if (y <= 2016) {
-      steps.push("普通免許を取得");
-      if (lics.includes("準中型") || lics.includes("中型") || lics.includes("大型")) {
-        steps.push("準中型免許（5t限定）へ自動移行");
-      }
-      if (lics.includes("中型") || lics.includes("大型")) {
-        steps.push("中型免許を取得");
-      }
-      if (lics.includes("大型")) {
-        steps.push("大型免許を取得");
+      // 5t限定も同様に、条件欄に記載が残っている＝2017年の自動移行時点で既に中型・大型免許を
+      // 保有していたと推定できる。
+      const keepsGoton = hasGotonCond && lics.includes("準中型") && (lics.includes("中型") || lics.includes("大型"));
+      if (keepsGoton) {
+        steps.push("普通免許を取得");
+        if (lics.includes("中型")) steps.push("中型免許を取得（2017年3月12日より前）");
+        if (lics.includes("大型")) steps.push("大型免許を取得（2017年3月12日より前）");
+        steps.push("準中型免許（5t限定）へ自動移行・付帯（上位免許保有のため解除されず残存）");
+      } else {
+        steps.push("普通免許を取得");
+        if (lics.includes("準中型") || lics.includes("中型") || lics.includes("大型")) {
+          steps.push("準中型免許（5t限定）へ自動移行");
+        }
+        if (lics.includes("中型") || lics.includes("大型")) {
+          steps.push("中型免許を取得");
+        }
+        if (lics.includes("大型")) {
+          steps.push("大型免許を取得");
+        }
       }
     } else {
       steps.push("普通免許を取得");
