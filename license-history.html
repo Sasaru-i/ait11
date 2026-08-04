@@ -638,6 +638,22 @@ function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nish
   licenses.forEach(lic => {
     const minAge = MIN_AGE[lic];
     if (minAge == null) return;
+
+    // 大型免許には自動移行の仕組みがなく、必ず個別の試験（かつ経験年数の要件）を経て取得する。
+    // 「他」の取得年をそのまま大型の取得年とみなすと、経験年数の分だけ実際より若く算出され、
+    // ほぼ確実に「若すぎる」という誤検知になる。個別取得年が入力されている場合のみ判定する。
+    if (lic === "大型") {
+      const acqYear = parseInt(licenseYears[lic]) || null;
+      if (!acqYear) return;
+      const approxAge = acqYear - birth.y;
+      const tokureiApplicable = acqYear >= TOKUREI_START_YEAR && TOKUREI_MIN_AGE[lic] != null;
+      const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : minAge;
+      if (approxAge < effectiveMin) {
+        notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${minAge}歳${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
+      }
+      return;
+    }
+
     const trackFallback = NISHU_TYPES.includes(lic) ? (nishu && nishu.y)
       : BIKE_TRACK_TYPES.includes(lic) ? (nikogen && nikogen.y)
       : CAR_TRACK_TYPES.includes(lic) ? (other && other.y)
@@ -646,9 +662,14 @@ function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nish
     if (!acqYear) return;
     const approxAge = acqYear - birth.y;
     const tokureiApplicable = acqYear >= TOKUREI_START_YEAR && TOKUREI_MIN_AGE[lic] != null;
-    const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : minAge;
+    // 中型免許は2007年6月2日新設のため、それより前の年は中型を直接試験取得したのではなく、
+    // 必ず旧普通免許からの自動移行（8t限定）を意味する。この場合に満たすべき年齢基準は
+    // 中型の20歳ではなく、当時実際に取得した普通免許の18歳になる。
+    const isAutoMigratedChugata = lic === "中型" && acqYear <= 2007;
+    const effectiveMinAge = isAutoMigratedChugata ? MIN_AGE["普通"] : minAge;
+    const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : effectiveMinAge;
     if (approxAge < effectiveMin) {
-      notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${minAge}歳${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
+      notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${effectiveMinAge}歳${isAutoMigratedChugata ? '（2007年6月2日より前のため、中型自体ではなく当時の普通免許の基準）' : ''}${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
     }
   });
   return notes;
