@@ -1001,7 +1001,7 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
   }
 
   if (licenses.includes("大型"))
-    la.push("### " + yearPrefix("大型") + "大型免許を取得\n\n**大型免許**：トレーラーや大型トラックの運転が可能。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
+    la.push("### " + yearPrefix("大型") + "大型免許を取得\n\n**大型免許**：車両総重量11トン以上の大型トラックの運転が可能。750kg以下のトレーラーの牽引も含まれますが、750kgを超えるトレーラーの牽引には大型免許があっても別途牽引免許が必要です。職業ドライバーか、強い意志を持って取得した方です。取得には21歳以上かつ普通・中型免許取得後3年以上の経験が必要でした（現在は19歳以上・1年以上）。");
   const bikeOrder = ["原付", "普通二輪", "大型二輪"];
   const selectedBikeLicenses = bikeOrder.filter(t => licenses.includes(t));
   const bikeYear = typeYear("大型二輪") || typeYear("普通二輪") || (nikogen && nikogen.y) || null;
