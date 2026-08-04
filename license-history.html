@@ -360,10 +360,13 @@ const CONDITION_GROUPS = [
     { id: "側車付に限る",    label: "側車付に限る（サイドカー）" },
     { id: "審査普1未済",     label: "審査普1未済（旧経過措置）" },
     { id: "審査軽車未済",    label: "審査軽車未済（旧経過措置）" },
+    { id: "軽自動車に限る",  label: "軽自動車に限る（360cc以下限定）" },
   ]},
 ];
 
 const SPECIAL_COND_MAP = [
+  { patterns: ["軽自動車に限る","軽自動車限定","360cc以下"],
+    analysis: "### 軽自動車に限る\n\n**「軽自動車に限る」**：1952年8月に新設された軽自動車免許（16歳から取得可能）が、1968年9月1日の制度改正で普通自動車免許に統合された際、限定解除審査を受けなかった保有者に付された経過措置の条件です。\n\n360cc以下の軽自動車のみ運転可能。1968年8月以前に軽自動車免許を取得した方の証で、現存する免許証では非常に稀な記載です。限定解除審査に合格すれば、限定のない普通免許になります。" },
   { patterns: ["中型車は中型車(8t)に限る","8トン限定","8t限定"],
     analysis: "### 中型車は中型車(8t)に限る\n\n**「中型車は中型車(8t)に限る」**：2007年6月2日の中型免許新設以前に取得した普通免許が自動移行されたものです。\n\n車両総重量8トン未満・最大積載量5トン未満・乗車定員10人以下まで運転可能。2トントラックや一部のバンが対象ですが、マイクロバスは乗車定員の関係で運転できません。\n\nこの条件を外すには教習所の限定解除講習（4〜6時間程度）が必要です。" },
   { patterns: ["準中型で運転できる準中型車は準中型車(5t)に限る","5トン限定","5t限定"],
@@ -416,6 +419,17 @@ const MIN_AGE = {
 // 2022年5月13日改正：19歳・実務経験1年（二種は3年）で中型・大型・二種が取得可能に
 const TOKUREI_MIN_AGE = { "中型": 19, "大型": 19, "大型二種": 19, "中型二種": 19, "普通二種": 19, "大型特殊二種": 19, "牽引二種": 19 };
 const TOKUREI_START_YEAR = 2022;
+// 軽自動車免許（1952年8月新設、16歳から取得可）は1968年9月1日に普通免許へ統合された。
+// それより前は「他」の初回取得が軽自動車免許経由なら16歳から適法だったため、
+// 「他」を使う年齢チェックはこの日付より前かどうかで最低年齢を切り替える。
+const KEIJIDOSHA_ABOLITION_DATE = { y: 1968, m: 9, d: 1 };
+const KEIJIDOSHA_MIN_AGE = 16;
+
+function isDateBefore(a, b) {
+  if (a.y !== b.y) return a.y < b.y;
+  if (a.m !== b.m) return a.m < b.m;
+  return a.d < b.d;
+}
 
 function warekiDateLabel(y, m, d) {
   return toWareki(y) + m + '月' + d + '日';
@@ -475,8 +489,12 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
   }
   if (birth && dateOther) {
     const age = dateDiffYears(birth, dateOther);
+    // 1968年9月1日より前は、普通免許ではなく軽自動車免許（16歳から取得可）経由だった
+    // 可能性があるため、その場合のみ最低年齢を16歳とする。
+    const isPreKei = isDateBefore(dateOther, KEIJIDOSHA_ABOLITION_DATE);
+    const minAgeOther = isPreKei ? KEIJIDOSHA_MIN_AGE : 18;
     if (age < 0) notes.push(describeImplausibleAge("他（四輪等）の初回取得日", "取得", age));
-    else if (age < 18) notes.push(`**他（四輪等）の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（普通・準中型等：18歳）を下回っています。`);
+    else if (age < minAgeOther) notes.push(`**他（四輪等）の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（${isPreKei ? '1968年9月1日より前は軽自動車免許により16歳' : '普通・準中型等：18歳'}）を下回っています。`);
   }
   if (birth && dateNishu) {
     const age = dateDiffYears(birth, dateNishu);
@@ -689,12 +707,25 @@ function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nish
     // 必ず旧普通免許からの自動移行（8t限定）を意味する。この場合に満たすべき年齢基準は
     // 中型の20歳ではなく、当時実際に取得した普通免許の18歳になる。
     const isAutoMigratedChugata = lic === "中型" && acqYear <= 2007;
-    const effectiveMinAge = isAutoMigratedChugata ? MIN_AGE["普通"] : minAge;
+    // 軽自動車免許（1952年8月新設、16歳から取得可）は1968年9月1日に普通免許へ統合された。
+    // 「他」をフォールバックに使っていて、かつその日付が統合日より前の場合は、
+    // 普通免許本来の18歳ではなく軽自動車免許の16歳を基準にする。
+    const usingPreKeiOtherFallback = !individualYear && trackDate === other && other
+      && minAge === 18 && isDateBefore(other, KEIJIDOSHA_ABOLITION_DATE);
+    let effectiveMinAge = minAge;
+    let migrationNote = '';
+    if (isAutoMigratedChugata) {
+      effectiveMinAge = MIN_AGE["普通"];
+      migrationNote = '（2007年6月2日より前のため、中型自体ではなく当時の普通免許の基準）';
+    } else if (usingPreKeiOtherFallback) {
+      effectiveMinAge = KEIJIDOSHA_MIN_AGE;
+      migrationNote = '（1968年9月1日より前は軽自動車免許により16歳から取得可能だったため）';
+    }
     const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : effectiveMinAge;
     if (approxAge < 0) {
       notes.push(describeImplausibleAge(lic + "免許", acqYear + "年", approxAge));
     } else if (approxAge < effectiveMin) {
-      notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${effectiveMinAge}歳${isAutoMigratedChugata ? '（2007年6月2日より前のため、中型自体ではなく当時の普通免許の基準）' : ''}${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
+      notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${effectiveMinAge}歳${migrationNote}${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
     }
   });
   return notes;
