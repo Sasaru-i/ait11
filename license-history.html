@@ -458,22 +458,32 @@ function dateDiffYears(fromDate, toDate) {
   return years;
 }
 
+// 年齢や経験年数の計算結果が負の値になる場合、それは「若すぎる」のではなく前後関係が
+// おかしい（日付の入力ミス）ことを意味する。日付ピッカーで「年」の部分だけ変更し忘れる
+// といった典型的な入力ミスに気づけるよう、通常の警告とは別の文言で明示する。
+function describeImplausibleAge(label, refYearLabel, value) {
+  return `**${label}**：生年月日をもとに計算すると、${refYearLabel}時点で${value}歳という負の値になります。日付の前後関係が逆転しているため、入力された年（西暦）に誤りがある可能性が高いです。特に日付選択で「年」の部分が正しく変更されていないケースがよくあるため、ご確認ください。`;
+}
+
 function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, licenses, licenseYears) {
   const notes = [];
 
   if (birth && dateNikogen) {
     const age = dateDiffYears(birth, dateNikogen);
-    if (age < 16) notes.push(`**二・小・原の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（原付・小型特殊・普通二輪：16歳）を下回っています。`);
+    if (age < 0) notes.push(describeImplausibleAge("二・小・原の初回取得日", "取得", age));
+    else if (age < 16) notes.push(`**二・小・原の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（原付・小型特殊・普通二輪：16歳）を下回っています。`);
   }
   if (birth && dateOther) {
     const age = dateDiffYears(birth, dateOther);
-    if (age < 18) notes.push(`**他（四輪等）の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（普通・準中型等：18歳）を下回っています。`);
+    if (age < 0) notes.push(describeImplausibleAge("他（四輪等）の初回取得日", "取得", age));
+    else if (age < 18) notes.push(`**他（四輪等）の初回取得日**：取得時点で${age}歳前後と推定され、最も早い取得可能年齢（普通・準中型等：18歳）を下回っています。`);
   }
   if (birth && dateNishu) {
     const age = dateDiffYears(birth, dateNishu);
     const tokureiApplicable = dateNishu.y >= TOKUREI_START_YEAR;
     const effectiveMin = tokureiApplicable ? 19 : 21;
-    if (age < effectiveMin) notes.push(`**二種の初回取得日**：取得時点で${age}歳前後と推定され、取得可能年齢（21歳、2022年5月以降は19歳特例あり）を下回っています。`);
+    if (age < 0) notes.push(describeImplausibleAge("二種の初回取得日", "取得", age));
+    else if (age < effectiveMin) notes.push(`**二種の初回取得日**：取得時点で${age}歳前後と推定され、取得可能年齢（21歳、2022年5月以降は19歳特例あり）を下回っています。`);
   }
 
   if (dateOther && licenses.includes("大型")) {
@@ -482,13 +492,16 @@ function checkCardDateConsistency(birth, dateNikogen, dateOther, dateNishu, lice
       const exp = acqYear - dateOther.y;
       const tokureiApplicable = acqYear >= TOKUREI_START_YEAR;
       const required = tokureiApplicable ? EXPERIENCE_YEARS_TOKUREI["大型"] : EXPERIENCE_YEARS_REQUIRED["大型"];
-      if (exp < required) notes.push(`**大型免許**：「他」初回取得（${dateOther.y}年）から大型取得（${acqYear}年）まで約${exp}年しかなく、必要な保有経験年数（${required}年${tokureiApplicable ? '・19歳特例' : ''}）に届いていない可能性があります。`);
+      if (exp < 0) notes.push(`**大型免許**：大型の取得年（${acqYear}年）が「他」初回取得（${dateOther.y}年）より前になっており、前後関係が逆転しています。取得年の入力をご確認ください。`);
+      else if (exp < required) notes.push(`**大型免許**：「他」初回取得（${dateOther.y}年）から大型取得（${acqYear}年）まで約${exp}年しかなく、必要な保有経験年数（${required}年${tokureiApplicable ? '・19歳特例' : ''}）に届いていない可能性があります。`);
     }
   }
 
   if (dateNishu && dateOther) {
     const exp = dateDiffYears(dateOther, dateNishu);
-    if (exp < EXPERIENCE_YEARS_REQUIRED["普通二種"]) {
+    if (exp < 0) {
+      notes.push(`**二種免許**：二種の初回取得が「他」初回取得（${dateOther.y}年）より前になっており、前後関係が逆転しています。日付の入力をご確認ください。`);
+    } else if (exp < EXPERIENCE_YEARS_REQUIRED["普通二種"]) {
       notes.push(`**二種免許**：「他」初回取得から二種取得まで約${exp}年しかなく、必要な保有経験年数（3年）に届いていない可能性があります。`);
     }
   }
@@ -566,7 +579,9 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
         // 人にしか付かない条件のため、生年月日から2007年時点で普通免許取得可能年齢（18歳）に
         // 達していたかだけは逆算できる。
         const age2007 = 2007 - birth.y;
-        if (age2007 < 18) {
+        if (age2007 < 0) {
+          notes.push(describeImplausibleAge("生年月日 × 中型車(8t)限定", "2007年", age2007));
+        } else if (age2007 < 18) {
           notes.push(`**生年月日 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日より前に普通免許を取得した方にのみ付される条件ですが、生年月日から2007年時点で${age2007}歳前後と推定され、普通免許の取得可能年齢（18歳）に達していません。生年月日または条件欄の入力をご確認ください。`);
         }
       }
@@ -594,7 +609,9 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
         // 5t限定は「2007年6月2日〜2017年3月11日に普通免許を取得」した人にしか付かないため、
         // 移行期間の終期（2016年時点）で18歳に達していたかだけは生年月日から逆算できる。
         const age2016 = 2016 - birth.y;
-        if (age2016 < 18) {
+        if (age2016 < 0) {
+          notes.push(describeImplausibleAge("生年月日 × 準中型車(5t)限定", "2016年", age2016));
+        } else if (age2016 < 18) {
           notes.push(`**生年月日 × 準中型車(5t)限定**：「準中型車(5t)限定」は2007年6月2日〜2017年3月11日に普通免許を取得した方にのみ付される条件ですが、生年月日から2016年時点でも${age2016}歳前後と推定され、普通免許の取得可能年齢（18歳）に達していません。生年月日または条件欄の入力をご確認ください。`);
         }
       }
@@ -648,7 +665,9 @@ function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nish
       const approxAge = acqYear - birth.y;
       const tokureiApplicable = acqYear >= TOKUREI_START_YEAR && TOKUREI_MIN_AGE[lic] != null;
       const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : minAge;
-      if (approxAge < effectiveMin) {
+      if (approxAge < 0) {
+        notes.push(describeImplausibleAge(lic + "免許", acqYear + "年", approxAge));
+      } else if (approxAge < effectiveMin) {
         notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${minAge}歳${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
       }
       return;
@@ -668,7 +687,9 @@ function checkAgeConsistency(birth, licenses, licenseYears, nikogen, other, nish
     const isAutoMigratedChugata = lic === "中型" && acqYear <= 2007;
     const effectiveMinAge = isAutoMigratedChugata ? MIN_AGE["普通"] : minAge;
     const effectiveMin = tokureiApplicable ? TOKUREI_MIN_AGE[lic] : effectiveMinAge;
-    if (approxAge < effectiveMin) {
+    if (approxAge < 0) {
+      notes.push(describeImplausibleAge(lic + "免許", acqYear + "年", approxAge));
+    } else if (approxAge < effectiveMin) {
       notes.push(`**${lic}免許**：${acqYear}年時点で${approxAge}歳前後と推定されますが、取得可能年齢は${effectiveMinAge}歳${isAutoMigratedChugata ? '（2007年6月2日より前のため、中型自体ではなく当時の普通免許の基準）' : ''}${tokureiApplicable ? `（19歳特例条件下では${TOKUREI_MIN_AGE[lic]}歳）` : ''}です。取得年または生年月日をご確認ください。`);
     }
   });
