@@ -1003,8 +1003,9 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
 
   // 車系（普通・準中型・中型・大型等）の制度改正判定は「他」の初回取得日を基準にする
   const carYear = other ? other.y : null;
-  // 時代背景・総合ストーリーは「他」を優先し、無ければ「二・小・原」を基準にする
-  const primaryYear = other ? other.y : (nikogen ? nikogen.y : null);
+  // 時代背景・総合ストーリーは「他」を優先し、無ければ「二・小・原」、それも無ければ
+  // 「二種」を基準にする（二種のみ入力されたケースでも🕰️セクションを表示するため）。
+  const primaryYear = other ? other.y : (nikogen ? nikogen.y : (nishu ? nishu.y : null));
 
   // 条件欄への8t/5t限定の記載は券面上の事実として扱う。取得の流れ（buildLicenseFlow）でも
   // 同じ考え方を使い、記載が残っている場合は「限定発生前から上位免許を保有していた」順序で組み立てる。
@@ -1097,11 +1098,57 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
     return steps.length > 0 ? steps : null;
   }
 
+  // 旅客（二種）系統の取得の流れ。普通二種→中型二種→大型二種のみを対象にする
+  // （牽引二種・大型特殊二種は8t限定と無関係の独立した資格のため対象外）。
+  // 中型二種の8t限定は、中型（1種）と同じ2007年6月2日を境とする自動移行だが、
+  // 起点は「他」ではなく「二種」の年（y）である点が異なる。
+  function buildNishuFlow(y, lics) {
+    const passengerTypes = ["普通二種", "中型二種", "大型二種"];
+    if (!lics.some(l => passengerTypes.includes(l))) return null;
+
+    const steps = [];
+
+    if (y <= 2006) {
+      // 条件欄に8t限定の記載が残っている＝2007年の自動移行時点で既に大型二種免許を
+      // 保有していた（後から大型二種を取得していれば8t限定は自動解除されているはず）と推定できる。
+      const keepsHachitonNishu = hasHachitonCond && lics.includes("中型二種") && lics.includes("大型二種");
+      if (keepsHachitonNishu) {
+        steps.push("普通二種免許を取得");
+        steps.push("大型二種免許を取得（2007年6月2日より前）");
+        steps.push("中型二種免許（8t限定）へ自動移行・付帯（大型二種免許保有のため解除されず残存）");
+      } else {
+        steps.push("普通二種免許を取得");
+        if (lics.includes("中型二種") || lics.includes("大型二種")) {
+          steps.push("中型二種免許（8t限定）へ自動移行");
+        }
+        if (lics.includes("大型二種")) {
+          if (lics.includes("中型二種")) steps.push("中型二種免許（限定解除）を取得");
+          steps.push("大型二種免許を取得");
+        }
+      }
+    } else {
+      steps.push("普通二種免許を取得");
+      if (lics.includes("中型二種") || lics.includes("大型二種")) {
+        steps.push("中型二種免許を取得");
+      }
+      if (lics.includes("大型二種")) {
+        steps.push("大型二種免許を取得");
+      }
+    }
+
+    return steps.length > 0 ? steps : null;
+  }
+
   if (primaryYear) {
     const flow = carYear ? buildLicenseFlow(carYear, licenses) : null;
-    const conclusionLine = flow
+    // 二種（旅客）系統は「他」ではなく「二種」の年を起点にするため、車系の流れとは別に
+    // 組み立て、保有していれば車系の流れの下に追記する。
+    const nishuYear = nishu ? nishu.y : null;
+    const nishuFlow = nishuYear ? buildNishuFlow(nishuYear, licenses) : null;
+    const nishuLine = nishuFlow ? "\n\n### " + nishuFlow.join(" → ") : "";
+    const conclusionLine = (flow
       ? "### " + flow.join(" → ")
-      : "### " + primaryYear + "年（" + eraLabel(primaryYear) + "）頃に最初の免許を取得";
+      : "### " + primaryYear + "年（" + eraLabel(primaryYear) + "）頃に最初の免許を取得") + nishuLine;
 
     if (primaryYear <= 1974)      results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1974年以前**の取得です。当時は二輪免許の排気量区分が存在せず、「自動二輪免許」一本でした。マイカーブームの黎明期にあたり、免許取得は一大イベントだったはずです。");
     else if (primaryYear <= 1979) results.push("## 🕰️ 取得の時代背景\n\n" + conclusionLine + "\n\n**1970年代後半**の取得です。1975年に二輪免許が排気量別に分かれた直後の世代。オイルショック後の時代で、燃費の良いバイク通勤が流行した時期でもあります。");
