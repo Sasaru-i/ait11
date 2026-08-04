@@ -1098,17 +1098,18 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
     return steps.length > 0 ? steps : null;
   }
 
-  // 旅客（二種）系統の取得の流れ。普通二種→中型二種→大型二種のみを対象にする
-  // （牽引二種・大型特殊二種は8t限定と無関係の独立した資格のため対象外）。
-  // 中型二種の8t限定は、中型（1種）と同じ2007年6月2日を境とする自動移行だが、
-  // 起点は「他」ではなく「二種」の年（y）である点が異なる。
+  // 二種（旅客・牽引・大型特殊）の取得の流れ。普通二種→中型二種→大型二種は8t限定の
+  // 自動移行（中型（1種）と同じ2007年6月2日を境とするが、起点は「他」ではなく「二種」の
+  // 年（y）になる）を含めて組み立てる。牽引二種・大型特殊二種は8t限定と無関係の独立した
+  // 資格のため、この流れとは別に単純な1ステップとして末尾に追加する。
   function buildNishuFlow(y, lics) {
-    const passengerTypes = ["普通二種", "中型二種", "大型二種"];
-    if (!lics.some(l => passengerTypes.includes(l))) return null;
+    if (!lics.some(l => NISHU_TYPES.includes(l))) return null;
 
     const steps = [];
+    const passengerTypes = ["普通二種", "中型二種", "大型二種"];
+    const hasPassenger = lics.some(l => passengerTypes.includes(l));
 
-    if (y <= 2006) {
+    if (hasPassenger && y <= 2006) {
       // 条件欄に8t限定の記載が残っている＝2007年の自動移行時点で既に大型二種免許を
       // 保有していた（後から大型二種を取得していれば8t限定は自動解除されているはず）と推定できる。
       const keepsHachitonNishu = hasHachitonCond && lics.includes("中型二種") && lics.includes("大型二種");
@@ -1126,7 +1127,7 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
           steps.push("大型二種免許を取得");
         }
       }
-    } else {
+    } else if (hasPassenger) {
       steps.push("普通二種免許を取得");
       if (lics.includes("中型二種") || lics.includes("大型二種")) {
         steps.push("中型二種免許を取得");
@@ -1135,6 +1136,11 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
         steps.push("大型二種免許を取得");
       }
     }
+
+    // 牽引二種・大型特殊二種は8t限定の自動移行と無関係の独立した資格のため、
+    // 上記の流れとは別に単純な1ステップとして追加する。
+    if (lics.includes("大型特殊二種")) steps.push("大型特殊二種免許を取得");
+    if (lics.includes("牽引二種")) steps.push("牽引二種免許を取得");
 
     return steps.length > 0 ? steps : null;
   }
