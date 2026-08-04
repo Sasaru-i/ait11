@@ -551,11 +551,15 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
       if (originYear && originYear > 2007) {
         notes.push(`**中型免許 × 中型車(8t)限定**：「中型車(8t)限定」は2007年6月2日の中型免許新設に伴う自動移行時のみ付される条件ですが、「他」の取得年は${originYear}年と推定され、この移行期間（2007年6月1日以前）と矛盾します。取得年または条件欄の入力をご確認ください。`);
       } else if (originYear) {
+        // 条件欄に「中型車(8t)限定」の記載があるという入力は、券面上の実際の記載を表す事実として扱う。
+        // そのため、上位免許の取得年が個別入力されていて2007年より後だと分かる場合のみ矛盾とし、
+        // 個別入力がない場合は「まだ解除されていないかもしれない」という推測ではなく、逆に
+        // 「この上位免許は2007年6月2日より前に取得していたはず」という推定として扱う。
         const resolution = findLimitationResolution(HACHITON_CONVERSION_YEAR, "中型", HACHITON_RESOLVE_HIGHER, licenses, licenseYears);
         if (resolution && resolution.resolved) {
-          notes.push(`**中型車(8t)限定は解除されている見込み**：${resolution.acqYear}年に取得した「${resolution.lic}」免許により、「中型車(8t)限定」は自動的に解除されているはずです。条件欄にまだ記載が残っている場合は、削除をご検討ください。`);
+          notes.push(`**${resolution.lic}免許 × 中型車(8t)限定**：${resolution.acqYear}年に取得した「${resolution.lic}」免許より後にもかかわらず、条件欄に「中型車(8t)限定」の記載が残っています。${resolution.lic}を8t限定の後に取得した場合は限定が自動的に解除されているはずのため、矛盾する可能性があります。取得年または条件欄の入力をご確認ください。`);
         } else if (resolution && !resolution.resolved) {
-          notes.push(`**中型車(8t)限定の解除タイミング未確認**：所持免許に「${resolution.lic}」が含まれています。${resolution.lic}を8t限定の後に取得していれば限定は自動的に解除されているはずです。「${resolution.lic} 取得年」を入力すると、より正確な判定ができます。`);
+          notes.push(`**${resolution.lic}免許 × 中型車(8t)限定**：条件欄に「中型車(8t)限定」の記載が残っており、かつ「${resolution.lic}」を保有していることから、${resolution.lic}は2007年6月2日より前に取得していた（＝中型8t限定の発生前から保有していた）と推定されます。2007年以降に新たに取得していれば限定は自動的に解除されているはずです。`);
         }
       } else if (birth) {
         // 「他」・中型の取得年が未入力でも、8t限定は「2007年6月2日より前に普通免許を取得」した
@@ -577,11 +581,14 @@ function checkTransitionalConditionConsistency(licenses, licenseYears, carYear, 
       if (originYear && (originYear < 2007 || originYear > 2016)) {
         notes.push(`**準中型免許 × 準中型車(5t)限定**：「準中型車(5t)限定」は2007年6月2日〜2017年3月11日に普通免許を取得した場合のみ付される条件ですが、「他」の取得年は${originYear}年と推定され、この移行期間と矛盾します。取得年または条件欄の入力をご確認ください。`);
       } else if (originYear) {
+        // 8t限定と同様、条件欄の「準中型車(5t)限定」記載は券面上の事実として扱い、上位免許の
+        // 取得年が個別入力されていて2017年より後だと分かる場合のみ矛盾とする。個別入力がなければ
+        // 「上位免許は2017年3月12日より前に取得していたはず」という推定にする。
         const resolution = findLimitationResolution(GOTON_CONVERSION_YEAR, "準中型", GOTON_RESOLVE_HIGHER, licenses, licenseYears);
         if (resolution && resolution.resolved) {
-          notes.push(`**準中型車(5t)限定は解除されている見込み**：${resolution.acqYear}年に取得した「${resolution.lic}」免許により、「準中型車(5t)限定」は自動的に解除されているはずです。条件欄にまだ記載が残っている場合は、削除をご検討ください。`);
+          notes.push(`**${resolution.lic}免許 × 準中型車(5t)限定**：${resolution.acqYear}年に取得した「${resolution.lic}」免許より後にもかかわらず、条件欄に「準中型車(5t)限定」の記載が残っています。${resolution.lic}を5t限定の後に取得した場合は限定が自動的に解除されているはずのため、矛盾する可能性があります。取得年または条件欄の入力をご確認ください。`);
         } else if (resolution && !resolution.resolved) {
-          notes.push(`**準中型車(5t)限定の解除タイミング未確認**：所持免許に「${resolution.lic}」が含まれています。${resolution.lic}を5t限定の後に取得していれば限定は自動的に解除されているはずです。「${resolution.lic} 取得年」を入力すると、より正確な判定ができます。`);
+          notes.push(`**${resolution.lic}免許 × 準中型車(5t)限定**：条件欄に「準中型車(5t)限定」の記載が残っており、かつ「${resolution.lic}」を保有していることから、${resolution.lic}は2017年3月12日より前に取得していた（＝準中型5t限定の発生前から保有していた）と推定されます。2017年3月12日以降に新たに取得していれば限定は自動的に解除されているはずです。`);
         }
       } else if (birth) {
         // 5t限定は「2007年6月2日〜2017年3月11日に普通免許を取得」した人にしか付かないため、
