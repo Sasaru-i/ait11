@@ -1011,16 +1011,31 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
 
     const steps = [];
 
+    // 軽自動車免許（1952年8月〜1968年8月、16歳から取得可）は1968年9月1日に普通免許へ
+    // 自動移行した。「他」取得時点の年齢が16〜17歳（普通免許の18歳未満）と判明している
+    // 場合のみ、軽自動車免許経由だったと確度高く推定できる（18歳以上は通常ルートと区別不可）。
+    const ageAtOther = (birth && other) ? dateDiffYears(birth, other) : null;
+    const viaKeijidosha = other && isDateBefore(other, KEIJIDOSHA_ABOLITION_DATE)
+      && ageAtOther != null && ageAtOther >= KEIJIDOSHA_MIN_AGE && ageAtOther < 18;
+    function pushInitialCarStep() {
+      if (viaKeijidosha) {
+        steps.push("軽自動車免許を取得（1968年9月1日より前・" + ageAtOther + "歳前後）");
+        steps.push("普通免許（軽自動車限定）へ自動移行・付帯");
+      } else {
+        steps.push("普通免許を取得");
+      }
+    }
+
     if (y <= 2006) {
       // 条件欄に8t限定の記載が残っている＝2007年の自動移行時点で既に大型免許を保有していた
       // （後から大型免許を取得していれば8t限定は自動的に解除されているはずのため）と推定できる。
       const keepsHachiton = hasHachitonCond && lics.includes("中型") && lics.includes("大型");
       if (keepsHachiton) {
-        steps.push("普通免許を取得");
+        pushInitialCarStep();
         steps.push("大型免許を取得（2007年6月2日より前）");
         steps.push("中型免許（8t限定）へ自動移行・付帯（大型免許保有のため解除されず残存）");
       } else {
-        steps.push("普通免許を取得");
+        pushInitialCarStep();
         if (lics.includes("中型") || lics.includes("大型")) {
           steps.push("中型免許（8t限定）へ自動移行");
         }
