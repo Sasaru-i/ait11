@@ -1024,10 +1024,12 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
 
   function buildLicenseFlow(y, lics) {
     const hasFour = lics.some(l => ["大型","中型","準中型","普通"].includes(l));
-    if (!hasFour) return null;
+    const hasStandalone = lics.includes("大型特殊") || lics.includes("牽引");
+    if (!hasFour && !hasStandalone) return null;
 
     const steps = [];
 
+    if (hasFour) {
     // 軽自動車免許（1952年8月〜1968年8月、16歳から取得可）は1968年9月1日に普通免許へ
     // 自動移行した。「他」取得時点の年齢が16〜17歳（普通免許の18歳未満）と判明している
     // 場合のみ、軽自動車免許経由だったと確度高く推定できる（18歳以上は通常ルートと区別不可）。
@@ -1094,6 +1096,12 @@ function analyze({ licenseColor, licenses, conditions, licenseYears, freeConditi
         steps.push("大型免許を取得");
       }
     }
+    }
+
+    // 大型特殊・牽引は8t/5t限定の自動移行と無関係の独立した資格のため、
+    // 上記の流れとは別に単純な1ステップとして追加する（単独保有でも表示される）。
+    if (lics.includes("大型特殊")) steps.push("大型特殊免許を取得");
+    if (lics.includes("牽引")) steps.push("牽引免許を取得");
 
     return steps.length > 0 ? steps : null;
   }
