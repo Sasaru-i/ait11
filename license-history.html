@@ -574,6 +574,9 @@ function findLimitationResolution(conversionYear, selfLicenses, higherLicenses, 
   }
   let hint = null;
   for (const lic of higherLicenses) {
+    // selfLicenses に含まれる免許は既に自己解除としてチェック済みのため、ここでは対象外にする
+    // （保有免許自身が higherLicenses にも含まれるケース＝中型二種のセルフ参照による誤検知を防ぐ）。
+    if (selfList.includes(lic)) continue;
     if (!licenses.includes(lic)) continue;
     const acqYear = parseInt(licenseYears[lic]) || null;
     if (acqYear && acqYear > conversionYear) {
